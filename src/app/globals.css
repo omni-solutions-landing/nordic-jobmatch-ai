@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+/*
+ * ─── Design Tokens ───────────────────────────────────────────────────────────
+ * Tailwind CSS v4: all configuration is CSS-first.
+ * Define custom theme values here via @theme.
+ */
+
+@theme {
+  /* ── Typography ──────────────────────────────────────────────────────────── */
+  --font-sans: "Inter", "system-ui", "-apple-system", "Segoe UI", "Roboto",
+    "Helvetica Neue", "Arial", "sans-serif";
+  --font-mono: "JetBrains Mono", "Fira Code", "Consolas", "monospace";
+
+  /* ── Brand Colors ────────────────────────────────────────────────────────── */
+  --color-brand-50: oklch(0.97 0.01 250);
+  --color-brand-100: oklch(0.93 0.02 250);
+  --color-brand-200: oklch(0.87 0.04 250);
+  --color-brand-300: oklch(0.78 0.08 250);
+  --color-brand-400: oklch(0.68 0.12 250);
+  --color-brand-500: oklch(0.58 0.16 250);
+  --color-brand-600: oklch(0.50 0.18 250);
+  --color-brand-700: oklch(0.42 0.16 250);
+  --color-brand-800: oklch(0.35 0.12 250);
+  --color-brand-900: oklch(0.28 0.08 250);
+  --color-brand-950: oklch(0.20 0.06 250);
+
+  /* ── Nordic Accent (Aurora inspired) ─────────────────────────────────────── */
+  --color-aurora-green: oklch(0.75 0.18 155);
+  --color-aurora-teal: oklch(0.72 0.14 185);
+  --color-aurora-blue: oklch(0.65 0.16 250);
+  --color-aurora-purple: oklch(0.60 0.20 290);
+
+  /* ── Surface (Dark mode first) ───────────────────────────────────────────── */
+  --color-surface-0: oklch(0.13 0.01 250);
+  --color-surface-1: oklch(0.16 0.01 250);
+  --color-surface-2: oklch(0.20 0.015 250);
+  --color-surface-3: oklch(0.24 0.015 250);
+
+  /* ── Semantic ────────────────────────────────────────────────────────────── */
+  --color-success: oklch(0.72 0.18 155);
+  --color-warning: oklch(0.80 0.16 80);
+  --color-error: oklch(0.65 0.22 25);
+  --color-info: oklch(0.72 0.14 230);
+
+  /* ── Border Radius ───────────────────────────────────────────────────────── */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+
+  /* ── Animations ──────────────────────────────────────────────────────────── */
+  --animate-fade-in: fade-in 0.5s ease-out;
+  --animate-slide-up: slide-up 0.4s ease-out;
+  --animate-pulse-glow: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ─── Keyframes ───────────────────────────────────────────────────────────── */
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* ─── Global Styles ───────────────────────────────────────────────────────── */
+
+html {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--color-surface-0);
+  color: oklch(0.93 0.01 250);
+  font-family: var(--font-sans);
+}
+
+/* Focus ring for accessibility */
+:focus-visible {
+  outline: 2px solid var(--color-brand-400);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Selection color */
+::selection {
+  background-color: oklch(0.50 0.18 250 / 0.3);
+}
