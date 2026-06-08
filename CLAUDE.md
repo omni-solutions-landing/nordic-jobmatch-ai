@@ -61,8 +61,9 @@ nordic-jobmatch-ai/
 │       ├── 00003_create_profile_on_signup_trigger.sql # Auto-creates profile in public.profiles
 │       ├── 00004_multi_cv_support.sql # Multi-CV table schema, trigger and create_cv_profile RPC
 │       ├── 00005_delete_user_data_rpc.sql # GDPR cascading data deletion RPC
-│       └── 00006_fix_match_jobs_search_path.sql # Fix match_jobs search path for pgvector operators
-│       └── 00008_add_job_posting_source_platform.sql # Added source_platform column to job_postings
+│       ├── 00006_fix_match_jobs_search_path.sql # Fix match_jobs search path for pgvector operators
+│       ├── 00008_add_job_posting_source_platform.sql # Added source_platform column to job_postings
+│       └── 00009_add_notification_settings.sql # Add notification settings and push subscription to profiles
 │
 ├── src/
 │   ├── proxy.ts                        # Root proxy (middleware): next-intl + Supabase auth session refresh
@@ -103,6 +104,7 @@ nordic-jobmatch-ai/
 │   │   ├── DeepHarvestPanel.tsx       # UI panel to trigger deep harvesting on-demand
 │   │   ├── KeywordSearch.tsx          # Search bar syncing query parameters to routing
 │   │   ├── LimitSelector.tsx          # Limits matches to 10, 25, 50, or 100 per page
+│   │   ├── NotificationSettings.tsx   # UI settings for email/push notifications
 │   │   ├── PWAProvider.tsx
 │   │   └── RefreshMatchesButton.tsx   # Triggers revalidation of job matching listings
 │   │
@@ -136,6 +138,10 @@ nordic-jobmatch-ai/
 │               ├── index.ts           # Barrel export
 │               ├── generator.ts       # generateEmbedding() + generateEmbeddingsBatch()
 │               └── stringifiers.ts    # stringifyCvForEmbedding() + stringifyJobForEmbedding()
+│           │
+│           └── infrastructure/
+│               └── notifications/
+│                   └── service.ts     # Email & Push notification engine
 ```
 
 ---
@@ -183,6 +189,7 @@ FormData (PDF) → validateFile() → verifyAuth() → ArrayBuffer → Buffer
 - **Zod everywhere** — `CvStructuredDataSchema` is both the Gemini output enforcer and the runtime validator.
 - **Bilingual anchoring** — Stringifiers include both original Nordic terms and English translations in the same string (e.g. `"Welder (Svetsare)"`).
 - **Service client vs server client** — `createServerClient()` respects RLS (user context). `createServiceClient()` bypasses RLS (harvesters, admin).
+- **Notification & Alert System** — Hooked at the end of the harvest API. Calculates new matches against the `matches` table (acting as a notified audit log) and alerts users via Resend (email) and Web Push (push).
 - **Tailwind v4** — CSS-first config via `@theme` in `globals.css`. Uses oklch color space.
 - **Proxy instead of Middleware** — Next.js 16 deprecated `middleware.ts` in favor of `src/proxy.ts` (with `proxy` default/named export).
 
@@ -208,6 +215,8 @@ FormData (PDF) → validateFile() → verifyAuth() → ArrayBuffer → Buffer
 | `src/proxy.ts` | Handles cookies session sync with Supabase and translations fallback next-intl routing. |
 | `src/app/actions/cv-actions.ts` | `uploadAndProcessCv` Server Action — processes and uploads candidate CVs using monad flows. |
 | `src/app/actions/match-actions.ts` | `getMatchesForUser` Server Action — matches job postings against active CV with keyword translations & country filters. |
+| `src/app/actions/notification-actions.ts` | Server actions to update user notification preferences and save Web Push subscriptions. |
+| `src/lib/infrastructure/notifications/service.ts` | Functional notification engine to scan, filter, and send email and push alerts. |
 
 ---
 
