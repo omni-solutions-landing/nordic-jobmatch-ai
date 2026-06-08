@@ -114,8 +114,12 @@ nordic-jobmatch-ai/
 │       │   ├── server.ts              # Server & Service clients
 │       │   └── middleware.ts          # Auth cookie sync middleware
 │       │
+│       ├── fp/
+│       │   ├── result.ts              # Result monad wrapper for type-safe error handling
+│       │   └── branded.ts             # Branded types (ProfileId, JobId, CvId) for compile-time safety
+│       │
 │       ├── harvesters/
-│       │   ├── base-harvester.ts      # Base abstract harvester with Gemini unstructured parsing
+│       │   ├── harvester-pipeline.ts  # Generic pure functional pipeline orchestrator (executeHarvestPipeline)
 │       │   ├── sweden-harvester.ts    # JobTech Dev API (CC0 search)
 │       │   ├── norway-harvester.ts    # NAV stilling-feed (Arbeidsplassen API)
 │       │   ├── indeed-harvester.ts    # Indeed RSS aggregator
@@ -153,34 +157,33 @@ npm run db:migrate   # Create a new migration file
 
 ## 5. Architecture & Conventions
 
-### Data flow
+### Functional Data Flow
+
+The codebase is built on **Strict functional programming** concepts. Side effects are isolated, and functions return algebraic `Result` values instead of throwing exceptions.
 
 ```
-FormData (PDF) → validate → parseCv(Buffer)     ← Gemini multimodal inlineData
-                                ↓
-                  CvStructuredData (Zod-validated)
-                                ↓
-                  stringifyCvForEmbedding()       ← bilingual anchoring
-                                ↓
-                  generateEmbedding({ taskType: "query" })
-                                ↓
-                  supabase.rpc("create_cv_profile")  ← insert with is_active=true
-                                ↓
-                  supabase.rpc("match_jobs", { query_embedding })
-                                ↓
-                  Ranked job matches by cosine similarity
+FormData (PDF) → validateFile() → verifyAuth() → ArrayBuffer → Buffer
+                                                                 ↓
+  Result.success(StructuredData) ← parseCvWithRetry(pdfBuffer) ←─┘
+        ↓
+  stringifyCvForEmbedding()
+        ↓
+  Result.success(Embedding) ← generateEmbedding({ taskType: "query" })
+        ↓
+  supabase.rpc("create_cv_profile") (DB insert)
 ```
 
 ### Key patterns
 
+- **Strict Functional Architecture** — Class inheritance is deprecated. Harvesters are defined as pure config objects (`HarvesterDefinition`) executed via `executeHarvestPipeline`.
+- **Result ADT monad** — All critical business/data operations return `Result<T, E>` types to ensure compile-time error checks.
+- **Type Branding** — ID values are wrapped in compile-time branded types (`ProfileId`, `JobId`, etc.) to prevent mixing up unrelated string IDs.
 - **Server Components first** — Client Components only when UI state requires it.
 - **Strict TypeScript** — `noUncheckedIndexedAccess: true`, no `any`, all Supabase queries typed via `database.types.ts`.
-- **Zod everywhere** — `CvStructuredDataSchema` is both the Gemini output enforcer (via `responseSchema`) and the runtime validator.
-- **Bilingual anchoring** — Stringifiers include both original Nordic terms and English translations in the same string (e.g. `"Welder (Svetsare)"`). This creates cross-lingual bridges in the embedding space.
-- **Labeled sections** — Embedding strings use `SKILLS:`, `CERTS:`, `REQUIREMENTS:` prefixes. Embedding models weigh labeled content more appropriately.
-- **Front-loading** — Highest-signal fields (skills, certifications, requirements) come first in the embedding string. First ~512 tokens have outsized influence on the vector.
-- **Service client vs server client** — `createServerClient()` respects RLS (user context). `createServiceClient()` bypasses RLS (harvesters, admin). Never use service client from client-side code.
-- **Tailwind v4** — No `tailwind.config.ts`. All config is CSS-first via `@theme` in `globals.css`. Uses oklch color space.
+- **Zod everywhere** — `CvStructuredDataSchema` is both the Gemini output enforcer and the runtime validator.
+- **Bilingual anchoring** — Stringifiers include both original Nordic terms and English translations in the same string (e.g. `"Welder (Svetsare)"`).
+- **Service client vs server client** — `createServerClient()` respects RLS (user context). `createServiceClient()` bypasses RLS (harvesters, admin).
+- **Tailwind v4** — CSS-first config via `@theme` in `globals.css`. Uses oklch color space.
 - **Proxy instead of Middleware** — Next.js 16 deprecated `middleware.ts` in favor of `src/proxy.ts` (with `proxy` default/named export).
 
 ### Embedding task types
@@ -189,50 +192,36 @@ FormData (PDF) → validate → parseCv(Buffer)     ← Gemini multimodal inline
 - `taskType: "query"` — Use when a CV is **searching** for matching jobs.
 - `taskType: "similarity"` — Use for direct pairwise comparison.
 
-### Supabase project
-
-- **Project ref:** `nwepwncpxcudfypgcyjr`
-- **Region:** eu-north-1 (Stockholm)
-- **URL:** `https://nwepwncpxcudfypgcyjr.supabase.co`
-
 ---
 
 ## 6. Key Files
 
 | File | Purpose |
 |---|---|
-| `src/lib/ai/cv-parser/schema.ts` | The Zod schema defining `CvStructuredData` — the central data contract for parsed CVs. |
-| `src/lib/ai/cv-parser/parser.ts` | `parseCv()` — orchestrates Gemini call, JSON parse, Zod validation. Entry point for CV processing. |
+| `src/lib/fp/result.ts` | Algebraic Data Type (`Result<T, E>`) mapping helper. |
+| `src/lib/fp/branded.ts` | Branded type enforcements (`ProfileId`, `JobId`, `CvId`). |
+| `src/lib/harvesters/harvester-pipeline.ts` | Functional pipeline orchestrator `executeHarvestPipeline` running all normalizer/embedding/storage steps. |
+| `src/lib/ai/cv-parser/schema.ts` | The Zod schema defining `CvStructuredData`. |
+| `src/lib/ai/cv-parser/parser.ts` | `parseCv()` — orchestrates Gemini call, JSON parse, Zod validation. |
 | `src/lib/ai/embeddings/generator.ts` | `generateEmbedding()` and `generateEmbeddingsBatch()` — Gemini gemini-embedding-2 wrapper. |
-| `src/lib/ai/embeddings/stringifiers.ts` | `stringifyCvForEmbedding()` and `stringifyJobForEmbedding()` — flatten structured data into embedding-optimized text with bilingual anchors. |
 | `src/lib/database.types.ts` | Auto-generated TypeScript types from Supabase schema. |
-| `src/lib/supabase/server.ts` | Two server-side Supabase clients: RLS-aware (`createServerClient`) and admin (`createServiceClient`). |
 | `src/proxy.ts` | Handles cookies session sync with Supabase and translations fallback next-intl routing. |
-| `src/app/actions/cv-actions.ts` | `uploadAndProcessCv` Server Action — processes and uploads candidate CVs. |
-| `src/app/actions/match-actions.ts` | `getMatchesForUser` Server Action — fetches and matches job postings against active CV with keyword translations & country filters. |
-| `src/lib/harvesters/base-harvester.ts` | Core abstract class executing the ingest-map-embed-store pipeline, using Gemini to parse unstructured descriptions. |
+| `src/app/actions/cv-actions.ts` | `uploadAndProcessCv` Server Action — processes and uploads candidate CVs using monad flows. |
+| `src/app/actions/match-actions.ts` | `getMatchesForUser` Server Action — matches job postings against active CV with keyword translations & country filters. |
 
 ---
 
 ## 7. Gotchas
 
-- **`match_jobs` RPC** — The Supabase function computes `1 - (job_embedding <=> query_embedding)` for cosine similarity. It filters out expired postings (`expires_at > now()`).
-- **Embedding dimensions** — Must be exactly 768. The generator validates this. HNSW indexes are built for `vector_cosine_ops` specifically.
-- **Multimodal PDF parsing** — `parseCv()` sends the PDF to Gemini as base64 `inlineData` (mimeType: `application/pdf`). Gemini reads the document natively.
+- **`match_jobs` RPC** — The Supabase function computes `1 - (job_embedding <=> query_embedding)` for cosine similarity.
+- **Embedding dimensions** — Must be exactly 768. The generator validates this.
+- **Multimodal PDF parsing** — `parseCv()` sends the PDF to Gemini as base64 `inlineData` (mimeType: `application/pdf`).
 - **`raw_text` column** — Stores Gemini's raw JSON response (not the original PDF text).
 - **PDF size limit** — 4MB max, 100 bytes min. Enforced in both `cv-actions.ts` and `parser.ts`.
 - **`database.types.ts`** — Generated file. When reading `structured_data`, cast it to `CvStructuredData` after Zod validation.
 - **Env vars** — Four required keys in `.env.local`: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`.
 - **Next.js 16 proxy deprecation** — `src/proxy.ts` has replaced `src/middleware.ts` to adhere to Next.js 16 conventions. It must export a default function or a named function `proxy`.
-- **Batch embedding limit** — Gemini allows max 100 texts per `batchEmbedContents` call. The generator auto-chunks and adds 100ms inter-chunk delay.
+- **Batch embedding limit** — Gemini allows max 100 texts per `batchEmbedContents` call.
 - **`source_url` UNIQUE** on `job_postings` — This is the deduplication key for all harvesters.
-- **Multi-CV support** — Dropped unique constraint on `cv_profiles.profile_id`. The database trigger automatically manages active/inactive flags.
-- **Vercel Hobby plan limitations** — `vercel.json` has been simplified to `{ "framework": "nextjs" }`. Regional routing configurations (`regions: ["arn1"]`) are omitted as they are unsupported on Hobby accounts.
-
----
-
-## 8. Open Questions
-
-- **Danish STAR SOAP Integration & Finnish Työmarkkinatori P67 v2** — Sweden and Norway are fully operational. Denmark (STAR SOAP/FOCES) and Finland (KEHA Centre P67 v2) are documented and ready for registration, but their official API integrations require formal access agreements.
-- **Auth flow** — Supabase Auth is wired at the middleware level with simulated/auto-login demo flows ready on the landing page.
-- **Multi-currency handling** — The `salary_info` JSONB column supports it structurally, but no normalization or conversion logic exists.
+- **Multi-CV support** — The database trigger automatically manages active/inactive flags.
+- **Vercel Hobby plan limitations** — `vercel.json` has been simplified to `{ "framework": "nextjs" }`. Regional routing configurations (`regions: ["arn1"]`) are omitted.
