@@ -169,6 +169,17 @@ export async function GET(request: NextRequest) {
 
   await Promise.all(tasks);
 
+  // Trigger notifications for new matches
+  let notifications = null;
+  try {
+    const { matchAndAlertUsersOfNewJobs } = await import("@/lib/infrastructure/notifications/service");
+    notifications = await matchAndAlertUsersOfNewJobs();
+  } catch (error) {
+    const msg = `Notifications dispatch failed: ${error instanceof Error ? error.message : String(error)}`;
+    console.error(msg);
+    errors.push(msg);
+  }
+
   const status = errors.length === 0 ? 200 : 207; // 207 Multi-Status if partial failure
 
   return NextResponse.json(
@@ -176,6 +187,7 @@ export async function GET(request: NextRequest) {
       ok: errors.length === 0,
       timestamp: new Date().toISOString(),
       results,
+      notifications,
       errors: errors.length > 0 ? errors : undefined,
     },
     { status }

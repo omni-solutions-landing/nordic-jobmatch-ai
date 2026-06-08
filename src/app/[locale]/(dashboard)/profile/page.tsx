@@ -4,6 +4,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import type { CvStructuredData } from "@/lib/ai/cv-parser/schema";
 import { CvManager } from "@/components/CvManager";
 import { DangerZone } from "@/components/DangerZone";
+import { NotificationSettings } from "@/components/NotificationSettings";
 
 export const metadata: Metadata = {
   title: "Profil",
@@ -19,7 +20,7 @@ export default async function ProfilePage() {
   // Fetch profile and all CV profiles
   const { data: profile } = (await supabase
     .from("profiles")
-    .select("full_name, email, country_code, current_status")
+    .select("full_name, email, country_code, current_status, email_notifications_enabled, push_notifications_enabled")
     .eq("id", user!.id)
     .maybeSingle()) as any;
 
@@ -85,6 +86,12 @@ export default async function ProfilePage() {
               </div>
             </div>
           </section>
+
+          {/* Notification settings card */}
+          <NotificationSettings
+            initialEmailEnabled={profile?.email_notifications_enabled ?? true}
+            initialPushEnabled={profile?.push_notifications_enabled ?? false}
+          />
 
           {/* CV Manager card */}
           <section className="bg-surface-1 border border-neutral-800 rounded-2xl p-6">

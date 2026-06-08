@@ -103,3 +103,47 @@ self.addEventListener('fetch', (event) => {
     );
   }
 });
+
+// Push Event
+self.addEventListener('push', (event) => {
+  let data = { title: 'Nordic JobMatch AI', body: 'Nya matchande jobb har hittats!' };
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data = { title: 'Nordic JobMatch AI', body: event.data.text() };
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    data: {
+      url: data.url || '/matches'
+    }
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+// Notification Click Event
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // Find open window and focus it, or open a new one
+      for (const client of windowClients) {
+        const clientUrl = new URL(client.url);
+        if (clientUrl.pathname.includes('/matches') && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(event.notification.data.url);
+      }
+    })
+  );
+});

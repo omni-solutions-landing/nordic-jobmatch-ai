@@ -29,6 +29,8 @@ export type Database = {
           skills_embedding: string | null
           structured_data: Json
           updated_at: string
+          filename: string
+          is_active: boolean
         }
         Insert: {
           id?: string
@@ -37,6 +39,8 @@ export type Database = {
           skills_embedding?: string | null
           structured_data?: Json
           updated_at?: string
+          filename?: string
+          is_active?: boolean
         }
         Update: {
           id?: string
@@ -45,6 +49,8 @@ export type Database = {
           skills_embedding?: string | null
           structured_data?: Json
           updated_at?: string
+          filename?: string
+          is_active?: boolean
         }
         Relationships: [
           {
@@ -160,6 +166,9 @@ export type Database = {
           full_name: string
           id: string
           updated_at: string
+          email_notifications_enabled: boolean
+          push_notifications_enabled: boolean
+          push_subscription: Json | null
         }
         Insert: {
           country_code?: Database["public"]["Enums"]["nordic_country"]
@@ -168,6 +177,9 @@ export type Database = {
           full_name?: string
           id: string
           updated_at?: string
+          email_notifications_enabled?: boolean
+          push_notifications_enabled?: boolean
+          push_subscription?: Json | null
         }
         Update: {
           country_code?: Database["public"]["Enums"]["nordic_country"]
@@ -176,6 +188,9 @@ export type Database = {
           full_name?: string
           id?: string
           updated_at?: string
+          email_notifications_enabled?: boolean
+          push_notifications_enabled?: boolean
+          push_subscription?: Json | null
         }
         Relationships: []
       }
