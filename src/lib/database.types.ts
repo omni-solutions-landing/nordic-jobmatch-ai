@@ -69,6 +69,7 @@ export type Database = {
           location: string
           original_language: Database["public"]["Enums"]["source_language"]
           salary_info: Json
+          source_platform: string
           source_url: string
           title: string
         }
@@ -84,6 +85,7 @@ export type Database = {
           location?: string
           original_language?: Database["public"]["Enums"]["source_language"]
           salary_info?: Json
+          source_platform?: string
           source_url?: string
           title: string
         }
@@ -99,6 +101,7 @@ export type Database = {
           location?: string
           original_language?: Database["public"]["Enums"]["source_language"]
           salary_info?: Json
+          source_platform?: string
           source_url?: string
           title?: string
         }

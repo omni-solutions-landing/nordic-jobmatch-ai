@@ -1,0 +1,68 @@
+{
+  "Navigation": {
+    "dashboard": "Yleiskatsaus",
+    "matches": "Etsi töitä",
+    "upload": "Lataa CV",
+    "profile": "Profiili",
+    "logout": "Kirjaudu ulos",
+    "login": "Kirjaudu sisään",
+    "register": "Rekisteröidy"
+  },
+  "Landing": {
+    "title": "Löydä seuraava työsi Pohjoismaissa tekoälyn avulla",
+    "description": "Lataa CV:si kerran ja löydä heti sopivia työpaikkoja Suomesta, Ruotsista ja Norjasta älykkään semanttisen haun avulla.",
+    "cta_upload": "Lataa CV:si",
+    "cta_login": "Kirjaudu sisään",
+    "features_title": "Miksi valita Nordic JobMatch AI?",
+    "feature_1_title": "Monikielinen tekoäly",
+    "feature_1_desc": "Tekoälymme ymmärtää kaikkia pohjoismaisia kieliä ja yhdistää kokemuksesi saumattomasti rajojen yli.",
+    "feature_2_title": "Usean CV:n tuki",
+    "feature_2_desc": "Lataa useita CV-profiileja eri työtehtäville ja valitse, mikä niistä on aktiivinen.",
+    "feature_3_title": "GDPR-vaatimustenmukainen",
+    "feature_3_desc": "Hallitset tietojasi täysin. Voit poistaa tilisi ja kaikki tietosi pysyvästi yhdellä klikkauksella."
+  },
+  "Profile": {
+    "title": "Profiiliasetukset",
+    "description": "Hallitse lataamiasi CV-tiedostoja, tilitietojasi ja tietosuoja-asetuksiasi.",
+    "account_section": "Tili",
+    "cv_section": "CV-profiilisi",
+    "active_cv": "Aktiivinen CV",
+    "add_cv": "Lisää",
+    "no_cvs": "Ei ladattuja CV-tiedostoja.",
+    "no_cvs_action": "Lataa ensimmäinen CV:si",
+    "no_active_cv": "Ei aktiivista CV-profiilia valittuna",
+    "no_active_cv_desc": "Valitse yksi CV-profiileistasi vasemmalta aktiiviseksi, tai lataa uusi nähdäksesi sen tiedot tässä.",
+    "skills": "Osaaminen",
+    "languages": "Kielet",
+    "certifications": "Sertifikaatit & ajokortit",
+    "summary": "Tiivistelmä",
+    "last_synced": "Viimeksi synkronoitu",
+    "danger_zone": {
+      "title": "Vaara-alue",
+      "description": "Jos poistat tilisi, kaikki tilitietosi, CV-profiilisi, hakuosumat ja kirjautumistietosi poistetaan pysyvästi GDPR:n mukaisesti. Tätä toimintoa ei voi peruuttaa.",
+      "button": "Poista tilini",
+      "confirm_label": "Kirjoita RADERA alle vahvistaaksesi pysyvän poiston:",
+      "confirm_placeholder": "Kirjoita RADERA",
+      "confirm_button": "Kyllä, poista tilini pysyvästi",
+      "cancel": "Peruuta",
+      "error_confirm": "Sinun on kirjoitettava RADERA vahvistaaksesi."
+    }
+  },
+  "Cookies": {
+    "title": "Välitämme tietosuojastasi 🍪",
+    "description": "Käytämme evästeitä parantaaksemme käyttökokemustasi, analysoidaksemme liikennettä ja työnhakuun liittyviin toimintoihin. GDPR:n mukaan sinulla on oikeus valita, mitkä evästeet hyväksyt.",
+    "privacy_policy": "tietosuojaselosteeseemme",
+    "accept_all": "Hyväksy kaikki",
+    "reject_all": "Hylkää kaikki (Vain välttämättömät)",
+    "customize": "Muokkaa valintoja",
+    "settings_title": "Muokkaa evästeasetuksia",
+    "save": "Tallenna valinnat",
+    "back": "Takaisin",
+    "essential_title": "Välttämättömät (Essential)",
+    "essential_desc": "Tarvitaan sovelluksen toimintaan, kuten kirjautumisen säilyttämiseen ja valintojesi tallentamiseen. Näitä ei voi poistaa käytöstä.",
+    "analytics_title": "Analytiikka & tilastot",
+    "analytics_desc": "Auttaa meitä ymmärtämään, miten sivustoa käytetään, jotta voimme parantaa sen toimintoja ja käyttökokemusta.",
+    "marketing_title": "Markkinointi",
+    "marketing_desc": "Käytetään näyttämään sinulle osuvia työpaikkailmoituksia ja kohdistettua sisältöä valintojesi perusteella."
+  }
+}

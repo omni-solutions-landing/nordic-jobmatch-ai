@@ -153,8 +153,10 @@ export async function parseCv(
     maxOutputTokens: 8192,
   };
 
-  const model = genAI.getGenerativeModel({
-    model: modelName,
+  let activeModelName = modelName;
+  const fallbackModels = ["gemini-2.0-flash", "gemini-3.5-flash"];
+  let model = genAI.getGenerativeModel({
+    model: activeModelName,
     systemInstruction: CV_PARSER_SYSTEM_PROMPT,
     generationConfig,
   });
@@ -166,26 +168,62 @@ export async function parseCv(
   const pdfBase64 = pdfBuffer.toString("base64");
   const startTime = performance.now();
 
-  let rawJson: string;
-  try {
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          data: pdfBase64,
-          mimeType: "application/pdf",
+  let rawJson = "";
+  let success = false;
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt <= fallbackModels.length; attempt++) {
+    try {
+      const result = await model.generateContent([
+        {
+          inlineData: {
+            data: pdfBase64,
+            mimeType: "application/pdf",
+          },
         },
-      },
-      {
-        text: "Parse this CV/resume PDF into structured JSON according to your instructions. Return the structured JSON output now.",
-      },
-    ]);
-    const response = result.response;
-    rawJson = response.text();
-  } catch (error) {
+        {
+          text: "Parse this CV/resume PDF into structured JSON according to your instructions. Return the structured JSON output now.",
+        },
+      ]);
+      const response = result.response;
+      rawJson = response.text();
+      success = true;
+      break;
+    } catch (error) {
+      lastError = error;
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      const isTransient =
+        errorMsg.includes("503") ||
+        errorMsg.includes("high demand") ||
+        errorMsg.includes("429") ||
+        errorMsg.includes("rate limit") ||
+        errorMsg.includes("Service Unavailable") ||
+        errorMsg.includes("Overloaded");
+
+      if (isTransient && attempt < fallbackModels.length) {
+        const nextModel = fallbackModels[attempt]!;
+        console.warn(
+          `Gemini model ${activeModelName} failed with transient error: ${errorMsg}. Falling back to ${nextModel}.`
+        );
+        activeModelName = nextModel;
+        model = genAI.getGenerativeModel({
+          model: activeModelName,
+          systemInstruction: CV_PARSER_SYSTEM_PROMPT,
+          generationConfig,
+        });
+        continue;
+      }
+      break;
+    }
+  }
+
+  if (!success) {
     throw new CvParserError(
-      `Gemini API call failed: ${error instanceof Error ? error.message : String(error)}`,
+      `Gemini API call failed after fallback attempts: ${
+        lastError instanceof Error ? lastError.message : String(lastError)
+      }`,
       "GEMINI_API_ERROR",
-      error,
+      lastError
     );
   }
 
@@ -200,7 +238,7 @@ export async function parseCv(
     throw new CvParserError(
       `Gemini returned invalid JSON: ${rawJson.slice(0, 200)}...`,
       "JSON_PARSE_FAILED",
-      error,
+      error
     );
   }
 
@@ -216,7 +254,7 @@ export async function parseCv(
     throw new CvParserError(
       `Schema validation failed after Gemini extraction:\n${issues}`,
       "SCHEMA_VALIDATION_FAILED",
-      validation.error,
+      validation.error
     );
   }
 
@@ -226,7 +264,7 @@ export async function parseCv(
     data: validation.data,
     rawJson,
     latencyMs,
-    model: modelName,
+    model: activeModelName,
     pdfSizeBytes: pdfBuffer.length,
   };
 }

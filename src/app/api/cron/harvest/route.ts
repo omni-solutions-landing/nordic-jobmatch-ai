@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { translateKeyword } from "@/lib/ai/translation";
 
 // Harvester cron endpoint — triggers job harvesting from Nordic APIs.
 //
@@ -21,30 +22,152 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Parse parameters from query string
+  const { searchParams } = new URL(request.url);
+  const limitParam = searchParams.get("limit");
+  const limit = limitParam ? parseInt(limitParam, 10) : 50;
+  const publishedAfterParam = searchParams.get("publishedAfter");
+  const publishedAfter = publishedAfterParam ? parseInt(publishedAfterParam, 10) : 240;
+  const q = searchParams.get("q") || undefined;
+
+  // Pre-translate search keywords for target country languages in parallel
+  const [keywordNo, keywordDa, keywordFi] = await Promise.all([
+    q ? translateKeyword(q, "no") : Promise.resolve(""),
+    q ? translateKeyword(q, "da") : Promise.resolve(""),
+    q ? translateKeyword(q, "fi") : Promise.resolve(""),
+  ]);
+  
+  const platformsParam = searchParams.get("platforms");
+  const platforms = platformsParam
+    ? platformsParam.split(",").map((p) => p.trim().toLowerCase())
+    : ["sweden", "norway"]; // default to public feeds for standard cron
+
   const results: Record<string, unknown> = {};
   const errors: string[] = [];
 
-  // Sweden harvester
-  try {
-    const { harvestSwedishJobs } = await import("@/lib/harvesters/sweden-harvester");
-    const seResult = await harvestSwedishJobs(50, 240); // 50 jobs, published in last 4 hours
-    results.sweden = seResult;
-  } catch (error) {
-    const msg = `Sweden harvest failed: ${error instanceof Error ? error.message : String(error)}`;
-    console.error(msg);
-    errors.push(msg);
+  const tasks: Promise<void>[] = [];
+
+  // 1. Sweden (Platsbanken)
+  if (platforms.includes("sweden") || platforms.includes("platsbanken")) {
+    tasks.push((async () => {
+      try {
+        const { harvestSwedishJobs } = await import("@/lib/harvesters/sweden-harvester");
+        const seResult = await harvestSwedishJobs(limit, publishedAfter, q);
+        results.sweden = seResult;
+      } catch (error) {
+        const msg = `Sweden harvest failed: ${error instanceof Error ? error.message : String(error)}`;
+        console.error(msg);
+        errors.push(msg);
+      }
+    })());
   }
 
-  // Norway harvester
-  try {
-    const { harvestNorwegianJobs } = await import("@/lib/harvesters/norway-harvester");
-    const noResult = await harvestNorwegianJobs(50);
-    results.norway = noResult;
-  } catch (error) {
-    const msg = `Norway harvest failed: ${error instanceof Error ? error.message : String(error)}`;
-    console.error(msg);
-    errors.push(msg);
+  // 2. Norway (NAV)
+  if (platforms.includes("norway") || platforms.includes("arbeidsplassen")) {
+    tasks.push((async () => {
+      try {
+        const { harvestNorwegianJobs } = await import("@/lib/harvesters/norway-harvester");
+        const noResult = await harvestNorwegianJobs(limit);
+        results.norway = noResult;
+      } catch (error) {
+        const msg = `Norway harvest failed: ${error instanceof Error ? error.message : String(error)}`;
+        console.error(msg);
+        errors.push(msg);
+      }
+    })());
   }
+
+  // 3. Indeed
+  if (platforms.includes("indeed")) {
+    tasks.push((async () => {
+      try {
+        const { harvestIndeedJobs } = await import("@/lib/harvesters/indeed-harvester");
+        const res = await harvestIndeedJobs(limit, publishedAfter, q);
+        results.indeed = res;
+      } catch (error) {
+        const msg = `Indeed harvest failed: ${error instanceof Error ? error.message : String(error)}`;
+        console.error(msg);
+        errors.push(msg);
+      }
+    })());
+  }
+
+  // 4. Jobindex (Denmark)
+  if (platforms.includes("jobindex") || platforms.includes("denmark")) {
+    tasks.push((async () => {
+      try {
+        const { harvestJobindexJobs } = await import("@/lib/harvesters/jobindex-harvester");
+        const res = await harvestJobindexJobs(limit, publishedAfter, keywordDa || q);
+        results.jobindex = res;
+      } catch (error) {
+        const msg = `Jobindex harvest failed: ${error instanceof Error ? error.message : String(error)}`;
+        console.error(msg);
+        errors.push(msg);
+      }
+    })());
+  }
+
+  // 5. Duunitori (Finland)
+  if (platforms.includes("duunitori") || platforms.includes("finland")) {
+    tasks.push((async () => {
+      try {
+        const { harvestDuunitoriJobs } = await import("@/lib/harvesters/duunitori-harvester");
+        const res = await harvestDuunitoriJobs(limit, publishedAfter, keywordFi || q);
+        results.duunitori = res;
+      } catch (error) {
+        const msg = `Duunitori harvest failed: ${error instanceof Error ? error.message : String(error)}`;
+        console.error(msg);
+        errors.push(msg);
+      }
+    })());
+  }
+
+  // 6. Facebook Groups
+  if (platforms.includes("facebook")) {
+    tasks.push((async () => {
+      try {
+        const { harvestFacebookJobs } = await import("@/lib/harvesters/facebook-harvester");
+        const res = await harvestFacebookJobs(limit, publishedAfter, q);
+        results.facebook = res;
+      } catch (error) {
+        const msg = `Facebook harvest failed: ${error instanceof Error ? error.message : String(error)}`;
+        console.error(msg);
+        errors.push(msg);
+      }
+    })());
+  }
+
+  // 7. Blocket Jobb
+  if (platforms.includes("blocket")) {
+    tasks.push((async () => {
+      try {
+        const { harvestBlocketJobs } = await import("@/lib/harvesters/blocket-harvester");
+        const res = await harvestBlocketJobs(limit, publishedAfter, q);
+        results.blocket = res;
+      } catch (error) {
+        const msg = `Blocket harvest failed: ${error instanceof Error ? error.message : String(error)}`;
+        console.error(msg);
+        errors.push(msg);
+      }
+    })());
+  }
+
+  // 8. FINN.no (Norway)
+  if (platforms.includes("finn") || platforms.includes("norway-private")) {
+    tasks.push((async () => {
+      try {
+        const { harvestFinnJobs } = await import("@/lib/harvesters/finn-harvester");
+        const res = await harvestFinnJobs(limit, publishedAfter, keywordNo || q);
+        results.finn = res;
+      } catch (error) {
+        const msg = `FINN.no harvest failed: ${error instanceof Error ? error.message : String(error)}`;
+        console.error(msg);
+        errors.push(msg);
+      }
+    })());
+  }
+
+  await Promise.all(tasks);
 
   const status = errors.length === 0 ? 200 : 207; // 207 Multi-Status if partial failure
 

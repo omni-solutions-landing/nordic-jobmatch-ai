@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createServerClient } from "@/lib/supabase/server";
 import { getMatchesForUser, type JobMatch } from "@/app/actions/match-actions";
+import { RefreshMatchesButton } from "@/components/RefreshMatchesButton";
+import { KeywordSearch } from "@/components/KeywordSearch";
+import { DeepHarvestPanel } from "@/components/DeepHarvestPanel";
+import { LimitSelector } from "@/components/LimitSelector";
+import { CountrySelector } from "@/components/CountrySelector";
 
 export const metadata: Metadata = {
   title: "Matchningar",
@@ -116,30 +121,65 @@ function MatchCard({ match }: { match: JobMatch }) {
   );
 }
 
-export default async function MatchesPage() {
+export default async function MatchesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; limit?: string; country?: string }>;
+}) {
+  const { q, limit: limitParam, country } = await searchParams;
+  const limit = limitParam ? parseInt(limitParam, 10) : 10;
+  
+  const keywords = q
+    ? q
+        .split(",")
+        .map((k) => k.trim())
+        .filter((k) => k.length > 0)
+    : [];
+
   const supabase = await createServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const matches = await getMatchesForUser(user!.id, { limit: 10 });
+  const matches = await getMatchesForUser(user!.id, {
+    limit,
+    keywords,
+    countries: country ? [country.toUpperCase()] : undefined,
+  });
 
   return (
-    <div>
+    <div className="space-y-6">
       {/* Page header */}
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Dina jobbmatchningar</h1>
           <p className="text-neutral-400">
             AI-matchade jobb baserat på ditt CV och kompetenser.
           </p>
         </div>
-        {matches.length > 0 && (
-          <span className="text-sm text-neutral-500 bg-surface-1 border border-neutral-800 px-3 py-1.5 rounded-full">
-            {matches.length} resultat
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          <RefreshMatchesButton />
+          {matches.length > 0 && (
+            <span className="text-sm text-neutral-500 bg-surface-1 border border-neutral-800 px-3 py-1.5 rounded-full">
+              {matches.length} resultat
+            </span>
+          )}
+        </div>
       </div>
+
+      {/* Keyword Search Filter Bar */}
+      <div className="p-4 bg-surface-1/40 border border-neutral-800 rounded-2xl flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <KeywordSearch />
+          <LimitSelector />
+        </div>
+        <div className="border-t border-neutral-800/40 pt-4">
+          <CountrySelector />
+        </div>
+      </div>
+
+      {/* Deep Harvest Control Panel */}
+      <DeepHarvestPanel />
 
       {/* No matches state */}
       {matches.length === 0 ? (

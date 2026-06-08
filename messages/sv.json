@@ -1,0 +1,68 @@
+{
+  "Navigation": {
+    "dashboard": "Översikt",
+    "matches": "Hitta jobb",
+    "upload": "Ladda upp CV",
+    "profile": "Profil",
+    "logout": "Logga ut",
+    "login": "Logga in",
+    "register": "Registrera"
+  },
+  "Landing": {
+    "title": "Hitta ditt nästa jobb i Norden med AI",
+    "description": "Ladda upp ditt CV en gång och matcha direkt mot tusentals jobbannonser i Sverige och Norge med intelligent semantisk sökning.",
+    "cta_upload": "Ladda upp ditt CV",
+    "cta_login": "Logga in",
+    "features_title": "Varför Nordic JobMatch AI?",
+    "feature_1_title": "Flerspråkig AI",
+    "feature_1_desc": "Vår AI förstår alla nordiska språk och mappar dina erfarenheter sömlöst över landsgränser.",
+    "feature_2_title": "Multi-CV stöd",
+    "feature_2_desc": "Ladda upp flera CV:n för olika yrkesroller och välj vilket som ska vara aktivt.",
+    "feature_3_title": "GDPR-säkert",
+    "feature_3_desc": "Du har full kontroll över dina data. Radera ditt konto och all din historik med ett klick."
+  },
+  "Profile": {
+    "title": "Profilinställningar",
+    "description": "Hantera dina uppladdade CV:n, kontouppgifter och integritetsinställningar.",
+    "account_section": "Konto",
+    "cv_section": "Dina CV:n",
+    "active_cv": "Aktivt CV",
+    "add_cv": "Lägg till",
+    "no_cvs": "Inget CV uppladdat än.",
+    "no_cvs_action": "Ladda upp ditt första CV",
+    "no_active_cv": "Inget aktivt CV valt",
+    "no_active_cv_desc": "Välj ett av dina CV:n till vänster som aktivt, eller ladda upp ett nytt för att visa din analyserade profil här.",
+    "skills": "Kompetenser",
+    "languages": "Språk",
+    "certifications": "Certifikat & körkort",
+    "summary": "Sammanfattning",
+    "last_synced": "Senast synkad",
+    "danger_zone": {
+      "title": "Farozoon",
+      "description": "Om du raderar ditt konto kommer all din kontodata, dina CV-profiler, matchningsresultat och din inloggning att tas bort permanent enligt GDPR-kraven. Denna åtgärd kan inte ångras.",
+      "button": "Radera mitt konto",
+      "confirm_label": "Skriv RADERA nedan för att bekräfta permanent radering:",
+      "confirm_placeholder": "Skriv RADERA",
+      "confirm_button": "Ja, radera mitt konto permanent",
+      "cancel": "Avbryt",
+      "error_confirm": "Du måste skriva RADERA för att bekräfta."
+    }
+  },
+  "Cookies": {
+    "title": "Vi bryr oss om din integritet 🍪",
+    "description": "Vi använder cookies för att förbättra din upplevelse, analysera trafik och för funktionalitet relaterad till jobbsökande. Enligt GDPR har du rätt att välja vilka cookies du godkänner.",
+    "privacy_policy": "integritetspolicy",
+    "accept_all": "Godkänn alla",
+    "reject_all": "Avvisa alla (Endast nödvändiga)",
+    "customize": "Anpassa val",
+    "settings_title": "Anpassa cookie-inställningar",
+    "save": "Spara val",
+    "back": "Tillbaka",
+    "essential_title": "Nödvändiga (Essential)",
+    "essential_desc": "Krävs för att applikationen ska fungera, till exempel för att hålla dig inloggad och spara dina val. Dessa kan inte stängas av.",
+    "analytics_title": "Analys & Statistik",
+    "analytics_desc": "Hjälper oss att förstå hur webbplatsen används så att vi kan förbättra funktionalitet och användarupplevelse.",
+    "marketing_title": "Marknadsföring",
+    "marketing_desc": "Används för att visa relevanta jobbannonser och anpassat innehåll baserat på dina preferenser."
+  }
+}

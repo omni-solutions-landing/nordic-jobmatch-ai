@@ -16,6 +16,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createServerClient } from "@/lib/supabase/server";
 import type { CvStructuredData } from "@/lib/ai/cv-parser/schema";
 import type { Database, Json } from "@/lib/database.types";
+import { translateKeyword } from "@/lib/ai/translation";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -120,6 +121,18 @@ const MOCK_JOBS = [
  * Normalizes and compares job hard requirements against user's skills, certifications,
  * languages, and education from structured CV data.
  */
+const LANGUAGE_MAP: Record<string, string[]> = {
+  sv: ["svenska", "swedish", "svensk", "sv"],
+  en: ["engelska", "english", "engelsk", "en"],
+  no: ["norska", "norwegian", "norsk", "no"],
+  da: ["danska", "danish", "dansk", "da"],
+  fi: ["finska", "finnish", "finsk", "fi", "suomi"],
+};
+
+/**
+ * Normalizes and compares job hard requirements against user's skills, certifications,
+ * languages, and education from structured CV data.
+ */
 function checkMissingPrerequisites(
   hardRequirements: string[],
   structuredData?: CvStructuredData
@@ -170,13 +183,48 @@ function checkMissingPrerequisites(
     const reqLower = req.toLowerCase().trim();
     if (!reqLower) continue;
 
-    // Check if matched in skills
+    // A. Driver License Hierarchical Matcher
+    const isLicenseReq = reqLower.includes("körkort") || reqLower.includes("license") || reqLower.includes("klasse ");
+    if (isLicenseReq) {
+      const userClasses = certs.flatMap((c) => c.licenseClasses);
+      const hasAnyLicense = userClasses.length > 0;
+      
+      let requiredClass: string | null = null;
+      if (reqLower.includes("ce") || reqLower.includes("c e") || reqLower.includes("c-e")) {
+        requiredClass = "ce";
+      } else if (reqLower.includes("c") && !reqLower.includes("ce") && !reqLower.includes("c-e") && !reqLower.includes("c e")) {
+        requiredClass = "c";
+      } else if (reqLower.includes("b") && !reqLower.includes("be")) {
+        requiredClass = "b";
+      } else if (reqLower.includes("d")) {
+        requiredClass = "d";
+      }
+
+      if (requiredClass === null) {
+        if (hasAnyLicense) continue; // Generic driver license matched
+      } else {
+        if (requiredClass === "b" && (userClasses.includes("b") || userClasses.includes("c") || userClasses.includes("ce"))) {
+          continue;
+        }
+        if (requiredClass === "c" && (userClasses.includes("c") || userClasses.includes("ce"))) {
+          continue;
+        }
+        if (requiredClass === "ce" && userClasses.includes("ce")) {
+          continue;
+        }
+        if (requiredClass === "d" && userClasses.includes("d")) {
+          continue;
+        }
+      }
+    }
+
+    // B. Check if matched in skills
     const matchInSkills = allSkills.some(
       (skill) => skill === reqLower || skill.includes(reqLower) || reqLower.includes(skill)
     );
     if (matchInSkills) continue;
 
-    // Check if matched in certifications
+    // C. Check if matched in certifications
     const matchInCerts = certs.some(
       (c) =>
         c.name.includes(reqLower) ||
@@ -186,7 +234,7 @@ function checkMissingPrerequisites(
     );
     if (matchInCerts) continue;
 
-    // Check if matched in education
+    // D. Check if matched in education
     const matchInEdu = education.some(
       (e) =>
         e.degree.includes(reqLower) ||
@@ -195,10 +243,12 @@ function checkMissingPrerequisites(
     );
     if (matchInEdu) continue;
 
-    // Check if matched in languages
-    const matchInLang = languages.some(
-      (l) => l.language.includes(reqLower) || l.iso === reqLower
-    );
+    // E. Check if matched in languages (with translation mappings)
+    const matchInLang = languages.some((l) => {
+      const userIso = l.iso.slice(0, 2);
+      const equivalents = LANGUAGE_MAP[userIso] || [l.language, l.iso];
+      return equivalents.some(eq => eq.includes(reqLower) || reqLower.includes(eq));
+    });
     if (matchInLang) continue;
 
     // Not found in CV structured data
@@ -307,10 +357,46 @@ Generate a highly professional match explanation summary (2-3 sentences) in the 
 function processMockMatches(structuredData?: CvStructuredData): JobMatch[] {
   const mockScores = [0.88, 0.79, 0.74, 0.67, 0.58];
 
-  return MOCK_JOBS.map((job, idx) => {
+  const results = MOCK_JOBS.map((job, idx) => {
     const score = mockScores[idx] ?? 0.60;
     const missing = checkMissingPrerequisites(job.hard_requirements, structuredData);
-    const explanation = generateDeterministicExplanation(Math.round(score * 100), job.country, missing);
+    
+    let adjustedScore = score;
+    
+    // Title-based regulated/specialized profession checks
+    const titleLower = job.title.toLowerCase();
+    const cvTextLower = JSON.stringify(structuredData || {}).toLowerCase();
+    const regulatedTitles = ["optiker", "sjuksköterska", "sjukskötare", "sykepleier", "nurse", "tandläkare", "tannlege", "läkare", "lege", "farmaceut", "apotekare", "psykolog", "systemutveckler", "software engineer", "utvikler"];
+    const isRegulatedTitle = regulatedTitles.some(term => titleLower.includes(term));
+    if (isRegulatedTitle) {
+      const hasCredential = regulatedTitles.some(term => titleLower.includes(term) && cvTextLower.includes(term));
+      if (!hasCredential) {
+        adjustedScore = 0;
+      }
+    }
+
+    if (adjustedScore > 0 && missing.length > 0) {
+      const hasRegulatedRequirement = missing.some(req => {
+        const reqLower = req.toLowerCase();
+        return (
+          reqLower.includes("legitimerad") ||
+          reqLower.includes("sjuksköterska") ||
+          reqLower.includes("optiker") ||
+          reqLower.includes("fagbrev") ||
+          reqLower.includes("hms-kort") ||
+          reqLower.includes("ykb") ||
+          reqLower.includes("körkort") ||
+          reqLower.includes("license")
+        );
+      });
+      if (hasRegulatedRequirement) {
+        adjustedScore = 0;
+      } else {
+        adjustedScore = Math.max(0, adjustedScore - (0.15 * missing.length));
+      }
+    }
+
+    const explanation = generateDeterministicExplanation(Math.round(adjustedScore * 100), job.country, missing);
 
     return {
       job_posting: {
@@ -318,11 +404,15 @@ function processMockMatches(structuredData?: CvStructuredData): JobMatch[] {
         expires_at: job.expires_at,
         created_at: job.created_at,
       },
-      match_score: score,
+      match_score: adjustedScore,
       missing_prerequisites: missing,
       explanation_summary: explanation,
     };
   });
+
+  return results
+    .filter((m) => m.match_score >= 0.5)
+    .sort((a, b) => b.match_score - a.match_score);
 }
 
 // ─── Main Action ─────────────────────────────────────────────────────────────
@@ -340,16 +430,18 @@ export async function getMatchesForUser(
     limit?: number;
     threshold?: number;
     countries?: string[];
+    keywords?: string[];
   }
 ): Promise<JobMatch[]> {
   const supabase = await createServerClient();
 
-  // A. Fetch the user's skills_embedding and structured_data
+  // A. Fetch the user's active skills_embedding and structured_data
   // Cast the query result because of a Supabase JS generator bug with isOneToOne relationships
   const { data: cvProfile, error: profileError } = (await supabase
     .from("cv_profiles")
     .select("skills_embedding, structured_data")
     .eq("profile_id", profileId)
+    .eq("is_active", true)
     .maybeSingle()) as unknown as {
     data: { skills_embedding: string | null; structured_data: Json } | null;
     error: any;
@@ -382,13 +474,49 @@ export async function getMatchesForUser(
   // If we filter multiple countries in JS, retrieve more matches to avoid starvation.
   const matchCount = countries.length > 1 ? 100 : limit;
 
-  // Execute Supabase RPC function match_jobs
-  // Cast RPC return to match the exact schema of function public.match_jobs
-  const rpcResponse = (await supabase.rpc(
-    "match_jobs",
-    // @ts-expect-error Supabase .rpc() resolves args to undefined with PostgrestVersion:14.5
+  // Translate search keywords to match job listings in all Nordic countries automatically
+  const rawKeywords = options?.keywords || [];
+  let matchKeywords = [...rawKeywords];
+  
+  if (rawKeywords.length > 0) {
+    try {
+      const translationPromises = rawKeywords.flatMap((kw) => [
+        translateKeyword(kw, "no"),
+        translateKeyword(kw, "da"),
+        translateKeyword(kw, "fi"),
+        translateKeyword(kw, "en"),
+        translateKeyword(kw, "sv"),
+      ]);
+      const translations = await Promise.all(translationPromises);
+      const uniqueTranslations = Array.from(
+        new Set(
+          translations
+            .map((t) => t.trim())
+            .filter((t) => t.length > 0)
+        )
+      );
+
+      const unionSet = new Set<string>();
+      for (const kw of rawKeywords) {
+        unionSet.add(kw.trim().toLowerCase());
+      }
+      for (const t of uniqueTranslations) {
+        unionSet.add(t.toLowerCase());
+      }
+      matchKeywords = Array.from(unionSet);
+      console.log(`[getMatchesForUser] Auto-translated search keywords: "${rawKeywords.join(", ")}" -> "${matchKeywords.join(", ")}"`);
+    } catch (err) {
+      console.warn("[getMatchesForUser] Auto-translation of keywords failed, using original keywords:", err);
+    }
+  }
+
+  // Execute Supabase RPC function match_jobs_with_keywords
+  // Cast RPC return to match the exact schema of function public.match_jobs_with_keywords
+  const rpcResponse = (await (supabase.rpc as any)(
+    "match_jobs_with_keywords",
     {
       query_embedding: cvProfile.skills_embedding,
+      match_keywords: matchKeywords,
       match_threshold: threshold,
       match_count: matchCount,
       filter_country: filterCountry,
@@ -475,11 +603,55 @@ export async function getMatchesForUser(
       structuredData
     );
 
+    // Calculate adjusted score based on missing hard requirements
+    let adjustedScore = match.similarity;
+
+    // Title-based regulated/specialized profession checks
+    const titleLower = job.title.toLowerCase();
+    const cvTextLower = JSON.stringify(structuredData || {}).toLowerCase();
+    const regulatedTitles = ["optiker", "sjuksköterska", "sjukskötare", "sykepleier", "nurse", "tandläkare", "tannlege", "läkare", "lege", "farmaceut", "apotekare", "psykolog", "systemutveckler", "software engineer", "utvikler"];
+    const isRegulatedTitle = regulatedTitles.some(term => titleLower.includes(term));
+    if (isRegulatedTitle) {
+      const hasCredential = regulatedTitles.some(term => titleLower.includes(term) && cvTextLower.includes(term));
+      if (!hasCredential) {
+        adjustedScore = 0;
+      }
+    }
+
+    if (adjustedScore > 0 && missingPrerequisites.length > 0) {
+      const hasRegulatedRequirement = missingPrerequisites.some(req => {
+        const reqLower = req.toLowerCase();
+        return (
+          reqLower.includes("legitimerad") ||
+          reqLower.includes("sjuksköterska") ||
+          reqLower.includes("optiker") ||
+          reqLower.includes("fagbrev") ||
+          reqLower.includes("hms-kort") ||
+          reqLower.includes("ykb") ||
+          reqLower.includes("körkort") ||
+          reqLower.includes("license")
+        );
+      });
+
+      if (hasRegulatedRequirement) {
+        // Regulated credentials are a hard blocker
+        adjustedScore = 0;
+      } else {
+        // General hard requirements: penalize score by 15% per missing item
+        adjustedScore = Math.max(0, adjustedScore - (0.15 * missingPrerequisites.length));
+      }
+    }
+
+    // Filter out jobs below threshold (default 0.5)
+    if (adjustedScore < threshold) {
+      continue;
+    }
+
     // Generate explanation summary (Quota-safe)
     const explanationSummary = await getMatchExplanation(
       structuredData,
       job,
-      match.similarity,
+      adjustedScore,
       missingPrerequisites
     );
 
@@ -498,7 +670,7 @@ export async function getMatchesForUser(
         expires_at: job.expires_at,
         created_at: job.created_at,
       },
-      match_score: match.similarity,
+      match_score: adjustedScore,
       missing_prerequisites: missingPrerequisites,
       explanation_summary: explanationSummary,
     });

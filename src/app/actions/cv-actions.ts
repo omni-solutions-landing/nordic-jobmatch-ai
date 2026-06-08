@@ -17,12 +17,13 @@
  * @module Server Action — runs exclusively on the server.
  */
 
-import { parseCv, type CvParseResult } from "@/lib/ai/cv-parser";
+import { parseCvWithRetry, type CvParseResult } from "@/lib/ai/cv-parser";
 import {
   generateEmbedding,
   stringifyCvForEmbedding,
 } from "@/lib/ai/embeddings";
 import { createServerClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
 import type { CvStructuredData } from "@/lib/ai/cv-parser/schema";
 import type { Database, Json } from "@/lib/database.types";
 
@@ -233,7 +234,7 @@ export async function uploadAndProcessCv(
   const parseStart = performance.now();
 
   try {
-    parseResult = await parseCv(pdfBuffer);
+    parseResult = await parseCvWithRetry(pdfBuffer);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "CV parsing failed.";
@@ -310,16 +311,17 @@ export async function uploadAndProcessCv(
 
   const storeStart = performance.now();
 
-  const rpcArgs: Database["public"]["Functions"]["upsert_cv_profile"]["Args"] = {
+  const rpcArgs = {
     p_profile_id: profileId,
+    p_filename: fileName,
     p_raw_text: parseResult.rawJson,
     p_structured_data: JSON.parse(JSON.stringify(parseResult.data)) as Json,
     p_skills_embedding: vectorToString(embedding),
   };
 
   const { data: cvProfileId, error: rpcError } = await supabase.rpc(
-    "upsert_cv_profile",
-    // @ts-expect-error Supabase .rpc() resolves args to undefined with PostgrestVersion:14.5
+    "create_cv_profile",
+    // @ts-expect-error new create_cv_profile RPC is not yet in database.types.ts
     rpcArgs,
   );
 
@@ -374,4 +376,57 @@ export async function uploadAndProcessCv(
       totalMs,
     },
   };
+}
+
+/**
+ * Activates a specific CV profile for the authenticated user.
+ * Deactivates all other CVs via DB trigger automatically.
+ */
+export async function activateCvAction(cvId: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { success: false, error: "Inte inloggad." };
+  }
+
+  const { error } = await (supabase.from("cv_profiles") as any)
+    .update({ is_active: true })
+    .eq("id", cvId)
+    .eq("profile_id", user.id);
+
+  if (error) {
+    console.error("Error activating CV:", error);
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/profile");
+  revalidatePath("/matches");
+  return { success: true };
+}
+
+/**
+ * Deletes a specific CV profile for the authenticated user.
+ */
+export async function deleteCvAction(cvId: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { success: false, error: "Inte inloggad." };
+  }
+
+  const { error } = await (supabase.from("cv_profiles") as any)
+    .delete()
+    .eq("id", cvId)
+    .eq("profile_id", user.id);
+
+  if (error) {
+    console.error("Error deleting CV:", error);
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/profile");
+  revalidatePath("/matches");
+  return { success: true };
 }

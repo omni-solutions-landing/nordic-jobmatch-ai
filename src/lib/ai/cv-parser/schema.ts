@@ -305,5 +305,26 @@ export function zodToGeminiSchema(schema: z.ZodType): Record<string, unknown> {
     $refStrategy: "none", // Inline all refs — Gemini doesn't support $ref
   });
 
-  return jsonSchema as Record<string, unknown>;
+  // Helper to recursively strip keys not supported by Gemini responseSchema
+  // (specifically "additionalProperties")
+  function cleanSchema(obj: any): any {
+    if (obj === null || typeof obj !== "object") {
+      return obj;
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.map(cleanSchema);
+    }
+
+    const cleaned: any = {};
+    for (const key of Object.keys(obj)) {
+      if (key === "additionalProperties") {
+        continue;
+      }
+      cleaned[key] = cleanSchema(obj[key]);
+    }
+    return cleaned;
+  }
+
+  return cleanSchema(jsonSchema) as Record<string, unknown>;
 }

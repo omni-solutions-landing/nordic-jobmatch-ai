@@ -420,7 +420,9 @@ export async function fetchNorwegianJobs(
     }
 
     // Follow next_url to older pages
-    currentUrl = page.next_url ?? null;
+    currentUrl = page.next_url
+      ? (page.next_url.startsWith("/") ? `${NAV_FEED_BASE_URL}${page.next_url}` : page.next_url)
+      : null;
 
     if (currentUrl && activeEntries.length < limit) {
       await new Promise((r) => setTimeout(r, INTER_PAGE_DELAY_MS));
@@ -442,7 +444,9 @@ export async function fetchNorwegianJobs(
 
     const results = await Promise.allSettled(
       chunk.map(async (entry) => {
-        const entryUrl = entry.url;
+        const entryUrl = entry.url.startsWith("/")
+          ? `${NAV_FEED_BASE_URL}${entry.url}`
+          : entry.url;
         const content = await callNavApi<NavFeedEntryContent>(entryUrl, token);
 
         if (!content || !content.ad_content) {

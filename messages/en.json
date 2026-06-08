@@ -1,0 +1,68 @@
+{
+  "Navigation": {
+    "dashboard": "Dashboard",
+    "matches": "Find Jobs",
+    "upload": "Upload CV",
+    "profile": "Profile",
+    "logout": "Log Out",
+    "login": "Log In",
+    "register": "Register"
+  },
+  "Landing": {
+    "title": "Find your next job in the Nordics using AI",
+    "description": "Upload your CV once and match instantly with thousands of job postings in Sweden and Norway using intelligent semantic search.",
+    "cta_upload": "Upload your CV",
+    "cta_login": "Log In",
+    "features_title": "Why Nordic JobMatch AI?",
+    "feature_1_title": "Multilingual AI",
+    "feature_1_desc": "Our AI understands all Nordic languages and maps your experiences seamlessly across borders.",
+    "feature_2_title": "Multi-CV Support",
+    "feature_2_desc": "Upload multiple CVs for different professional roles and select which one should be active.",
+    "feature_3_title": "GDPR Compliant",
+    "feature_3_desc": "You have full control over your data. Delete your account and all your history with a single click."
+  },
+  "Profile": {
+    "title": "Profile Settings",
+    "description": "Manage your uploaded CVs, account details, and privacy settings.",
+    "account_section": "Account",
+    "cv_section": "Your CVs",
+    "active_cv": "Active CV",
+    "add_cv": "Add",
+    "no_cvs": "No CV uploaded yet.",
+    "no_cvs_action": "Upload your first CV",
+    "no_active_cv": "No active CV selected",
+    "no_active_cv_desc": "Select one of your CVs on the left as active, or upload a new one to show your analyzed profile here.",
+    "skills": "Skills",
+    "languages": "Languages",
+    "certifications": "Certifications & Licenses",
+    "summary": "Summary",
+    "last_synced": "Last synced",
+    "danger_zone": {
+      "title": "Danger Zone",
+      "description": "If you delete your account, all your account data, CV profiles, match results, and login will be permanently removed in accordance with GDPR. This action cannot be undone.",
+      "button": "Delete my account",
+      "confirm_label": "Type RADERA below to confirm permanent deletion:",
+      "confirm_placeholder": "Type RADERA",
+      "confirm_button": "Yes, permanently delete my account",
+      "cancel": "Cancel",
+      "error_confirm": "You must type RADERA to confirm."
+    }
+  },
+  "Cookies": {
+    "title": "We value your privacy 🍪",
+    "description": "We use cookies to improve your experience, analyze traffic, and for job-seeking features. Under GDPR, you have the right to choose which cookies you approve.",
+    "privacy_policy": "privacy policy",
+    "accept_all": "Accept All",
+    "reject_all": "Reject All (Necessary Only)",
+    "customize": "Customize Choices",
+    "settings_title": "Customize Cookie Settings",
+    "save": "Save Choices",
+    "back": "Back",
+    "essential_title": "Necessary (Essential)",
+    "essential_desc": "Required for the application to function, such as keeping you logged in and saving your preferences. These cannot be disabled.",
+    "analytics_title": "Analytics & Statistics",
+    "analytics_desc": "Helps us understand how the website is used so we can improve functionality and user experience.",
+    "marketing_title": "Marketing",
+    "marketing_desc": "Used to show relevant job ads and customized content based on your preferences."
+  }
+}

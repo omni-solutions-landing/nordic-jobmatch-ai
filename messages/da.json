@@ -1,0 +1,68 @@
+{
+  "Navigation": {
+    "dashboard": "Oversigt",
+    "matches": "Find job",
+    "upload": "Upload CV",
+    "profile": "Profil",
+    "logout": "Log ud",
+    "login": "Log ind",
+    "register": "Registrer dig"
+  },
+  "Landing": {
+    "title": "Find dit næste job i Norden med AI",
+    "description": "Upload dit CV én gang og match øjeblikkeligt med tusindvis av jobannoncer i Danmark, Sverige og Norge med intelligent semantisk søgning.",
+    "cta_upload": "Upload dit CV",
+    "cta_login": "Log ind",
+    "features_title": "Hvorfor Nordic JobMatch AI?",
+    "feature_1_title": "Flersproget AI",
+    "feature_1_desc": "Vores AI forstår alle nordiske sprog og kortlægger dine erfaringer sømløst på tværs af landegrænser.",
+    "feature_2_title": "Multi-CV support",
+    "feature_2_desc": "Upload flere CV'er til forskellige erhvervsroller og vælg hvilket der skal være aktivt.",
+    "feature_3_title": "GDPR-sikkert",
+    "feature_3_desc": "Du har fuld kontrol over dine data. Slet din konto og hele din historik med et enkelt klik."
+  },
+  "Profile": {
+    "title": "Profilindstillinger",
+    "description": "Administrer dine uploadede CV'er, kontooplysninger og privatlivsindstillinger.",
+    "account_section": "Konto",
+    "cv_section": "Dine CV'er",
+    "active_cv": "Aktivt CV",
+    "add_cv": "Tilføj",
+    "no_cvs": "Intet CV uploadet endnu.",
+    "no_cvs_action": "Upload dit første CV",
+    "no_active_cv": "Intet aktivt CV valgt",
+    "no_active_cv_desc": "Vælg et af dine CV'er til venstre som aktivt, eller upload et nyt for at vise din analyserede profil her.",
+    "skills": "Kompetencer",
+    "languages": "Sprog",
+    "certifications": "Certifikater & kørekort",
+    "summary": "Resumé",
+    "last_synced": "Sidst synkroniseret",
+    "danger_zone": {
+      "title": "Farezone",
+      "description": "Hvis du sletter din konto, vil alle kontodata, CV-profiler, matchningsresultater og dit login blive slettet permanent i overensstemmelse med GDPR. Denne handling kan ikke fortrydes.",
+      "button": "Slet min konto",
+      "confirm_label": "Skriv RADERA nedenfor for at bekræfte permanent sletning:",
+      "confirm_placeholder": "Skriv RADERA",
+      "confirm_button": "Ja, slet min konto permanent",
+      "cancel": "Annuller",
+      "error_confirm": "Du skal skrive RADERA for at bekræfte."
+    }
+  },
+  "Cookies": {
+    "title": "Vi værdsætter dit privatliv 🍪",
+    "description": "Vi bruger cookies til at forbedre din oplevelse, analysere trafik og til funktioner relateret til jobsøgning. I henhold til GDPR har du ret til at vælge, hvilke cookies du godkender.",
+    "privacy_policy": "privatlivspolitik",
+    "accept_all": "Accepter alle",
+    "reject_all": "Afvis alle (Kun nødvendige)",
+    "customize": "Tilpas valg",
+    "settings_title": "Tilpas indstillinger for cookies",
+    "save": "Gem valg",
+    "back": "Tilbage",
+    "essential_title": "Nødvendige (Essential)",
+    "essential_desc": "Kræves for at applikationen fungerer, f.eks. for at holde dig logget ind og gemme dine valg. Disse kan ikke deaktiveres.",
+    "analytics_title": "Analyse & statistik",
+    "analytics_desc": "Hjælper os med at forstå, hvordan webstedet bruges, så vi kan forbedre funktionalitet og brugeroplevelse.",
+    "marketing_title": "Markedsføring",
+    "marketing_desc": "Bruges til at vise relevante jobannoncer og tilpasset indhold baseret på dine præferencer."
+  }
+}

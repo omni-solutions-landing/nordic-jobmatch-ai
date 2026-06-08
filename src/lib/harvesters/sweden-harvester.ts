@@ -304,6 +304,7 @@ async function callJobTechApi(
 export async function fetchSwedishJobs(
   limit: number,
   publishedAfterMinutes = 1440,
+  q?: string,
 ): Promise<{ ads: JobTechAd[]; totalAvailable: number }> {
   const allAds: JobTechAd[] = [];
   const effectiveLimit = Math.min(limit, API_MAX_OFFSET + API_MAX_LIMIT);
@@ -316,12 +317,18 @@ export async function fetchSwedishJobs(
       effectiveLimit - allAds.length,
     );
 
-    const response = await callJobTechApi({
+    const apiParams: Record<string, string> = {
       limit: String(pageSize),
       offset: String(offset),
       sort: "pubdate-desc",
       "published-after": String(publishedAfterMinutes),
-    });
+    };
+
+    if (q && q.trim()) {
+      apiParams.q = q.trim();
+    }
+
+    const response = await callJobTechApi(apiParams);
 
     totalAvailable = response.total.value;
 
@@ -489,6 +496,7 @@ function vectorToString(embedding: number[]): string {
 export async function harvestSwedishJobs(
   limit = 50,
   publishedAfterMinutes = 1440,
+  q?: string,
 ): Promise<HarvestResult> {
   const totalStart = performance.now();
   const errors: string[] = [];
@@ -500,7 +508,7 @@ export async function harvestSwedishJobs(
   let totalAvailable: number;
 
   try {
-    const result = await fetchSwedishJobs(limit, publishedAfterMinutes);
+    const result = await fetchSwedishJobs(limit, publishedAfterMinutes, q);
     ads = result.ads;
     totalAvailable = result.totalAvailable;
   } catch (error) {

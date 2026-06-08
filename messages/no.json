@@ -1,0 +1,68 @@
+{
+  "Navigation": {
+    "dashboard": "Oversikt",
+    "matches": "Finn jobb",
+    "upload": "Last opp CV",
+    "profile": "Profil",
+    "logout": "Logg ut",
+    "login": "Logg inn",
+    "register": "Registrer deg"
+  },
+  "Landing": {
+    "title": "Finn din neste jobb i Norden med AI",
+    "description": "Last opp CV-en din én gang og match umiddelbart mot tusenvis av stillingsannonser i Norge og Sverige med intelligent semantisk søk.",
+    "cta_upload": "Last opp CV-en din",
+    "cta_login": "Logg inn",
+    "features_title": "Hvorfor Nordic JobMatch AI?",
+    "feature_1_title": "Flerspråklig AI",
+    "feature_1_desc": "Vår AI forstår alle nordiske språk og kartlegger dine erfaringer sømløst på tvers av landegrensene.",
+    "feature_2_title": "Multi-CV støtte",
+    "feature_2_desc": "Last opp flere CV-er for ulike yrkesroller og velg hvilken som skal være aktiv.",
+    "feature_3_title": "GDPR-sikkert",
+    "feature_3_desc": "Du har full kontroll over dine data. Slett kontoen din og all historikken din med ett klikk."
+  },
+  "Profile": {
+    "title": "Profilinnstillinger",
+    "description": "Administrer dine opplastede CV-er, kontoopplysninger og personverninnstillinger.",
+    "account_section": "Konto",
+    "cv_section": "Dine CV-er",
+    "active_cv": "Aktivt CV",
+    "add_cv": "Legg til",
+    "no_cvs": "Ingen CV lastet opp ennå.",
+    "no_cvs_action": "Last opp din første CV",
+    "no_active_cv": "Ingen aktiv CV valgt",
+    "no_active_cv_desc": "Velg en av dine CV-er til venstre som aktiv, eller last opp en ny for å vise den analyserte profilen din her.",
+    "skills": "Kompetanser",
+    "languages": "Språk",
+    "certifications": "Sertifikater & førerkort",
+    "summary": "Sammendrag",
+    "last_synced": "Sist synkronisert",
+    "danger_zone": {
+      "title": "Faresone",
+      "description": "Hvis du sletter kontoen din, vil alle kontodataene dine, CV-profilene, matchingsresultatene og påloggingen din slettes permanent i tråd med GDPR. Denne handlingen kan ikke angres.",
+      "button": "Slett kontoen min",
+      "confirm_label": "Skriv RADERA nedenfor for å bekrefte permanent sletting:",
+      "confirm_placeholder": "Skriv RADERA",
+      "confirm_button": "Ja, slett kontoen min permanent",
+      "cancel": "Avbryt",
+      "error_confirm": "Du må skrive RADERA for å bekrefte."
+    }
+  },
+  "Cookies": {
+    "title": "Vi bryr oss om ditt personvern 🍪",
+    "description": "Vi bruker informasjonskapsler (cookies) for å forbedre opplevelsen din, analysere trafikk og for funksjonalitet relatert til jobbsøking. I henhold til GDPR har du rett til å velge hvilke informasjonskapsler du godkjenner.",
+    "privacy_policy": "personvernerklæring",
+    "accept_all": "Godta alle",
+    "reject_all": "Avvis alle (Kun nødvendige)",
+    "customize": "Tilpass valg",
+    "settings_title": "Tilpass innstillinger for informasjonskapsler",
+    "save": "Lagre valg",
+    "back": "Tilbake",
+    "essential_title": "Nødvendige (Essential)",
+    "essential_desc": "Kreves for at applikasjonen skal fungere, for eksempel for å holde deg innlogget og lagre valgene dine. Disse kan ikke deaktiveres.",
+    "analytics_title": "Analyse & statistikk",
+    "analytics_desc": "Hjelper oss å forstå hvordan nettstedet brukes, slik at vi kan forbedre funksjonalitet og brukeropplevelse.",
+    "marketing_title": "Markedsføring",
+    "marketing_desc": "Brukes til å vise relevante jobbannonser og tilpasset innhold basert på dine preferanser."
+  }
+}

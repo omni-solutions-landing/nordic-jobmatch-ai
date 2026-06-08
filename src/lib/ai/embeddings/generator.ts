@@ -20,7 +20,7 @@ import {
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
-const EMBEDDING_MODEL = "text-embedding-004";
+const EMBEDDING_MODEL = "gemini-embedding-2";
 const EMBEDDING_DIMENSIONS = 768;
 
 /** Gemini embedding API supports up to 100 texts per batch request. */
@@ -166,7 +166,8 @@ export async function generateEmbedding(
       const response = await model.embedContent({
         content: { parts: [{ text: processedText }], role: "user" },
         taskType,
-      });
+        outputDimensionality: EMBEDDING_DIMENSIONS,
+      } as any);
       return response.embedding.values;
     },
     maxRetries,
@@ -236,9 +237,10 @@ export async function generateEmbeddingsBatch(
   for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
     const chunk = chunks[chunkIndex]!;
 
-    const requests: EmbedContentRequest[] = chunk.map((text) => ({
+    const requests: any[] = chunk.map((text) => ({
       content: { parts: [{ text }], role: "user" as const },
       taskType,
+      outputDimensionality: EMBEDDING_DIMENSIONS,
     }));
 
     const chunkEmbeddings = await withRetry(
