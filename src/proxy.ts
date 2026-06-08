@@ -6,26 +6,32 @@ import { updateSession } from "@/lib/supabase/middleware";
 const intlMiddleware = createMiddleware(routing);
 
 export async function proxy(request: NextRequest) {
-  // 1. Run Supabase session update (refreshes tokens)
-  const supabaseResponse = await updateSession(request);
+  try {
+    // 1. Run Supabase session update (refreshes tokens)
+    const supabaseResponse = await updateSession(request);
 
-  // 2. Run next-intl middleware
-  const response = intlMiddleware(request);
+    // 2. Run next-intl middleware
+    const response = intlMiddleware(request);
 
-  // 3. Copy cookies from supabaseResponse to the final response
-  supabaseResponse.cookies.getAll().forEach((cookie) => {
-    response.cookies.set(cookie.name, cookie.value, {
-      path: cookie.path,
-      domain: cookie.domain,
-      maxAge: cookie.maxAge,
-      secure: cookie.secure,
-      sameSite: cookie.sameSite,
-      httpOnly: cookie.httpOnly,
-      expires: cookie.expires,
+    // 3. Copy cookies from supabaseResponse to the final response
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      response.cookies.set(cookie.name, cookie.value, {
+        path: cookie.path,
+        domain: cookie.domain,
+        maxAge: cookie.maxAge,
+        secure: cookie.secure,
+        sameSite: cookie.sameSite,
+        httpOnly: cookie.httpOnly,
+        expires: cookie.expires,
+      });
     });
-  });
 
-  return response;
+    return response;
+  } catch (error) {
+    console.error("[middleware/proxy] Error during execution:", error);
+    // Graceful fallback: execute next-intl routing anyway
+    return intlMiddleware(request);
+  }
 }
 
 export const config = {
