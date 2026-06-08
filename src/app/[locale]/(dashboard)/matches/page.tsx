@@ -141,11 +141,13 @@ export default async function MatchesPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const matches = await getMatchesForUser(user!.id, {
+  const matchesResult = await getMatchesForUser(user!.id, {
     limit,
     keywords,
     countries: country ? [country.toUpperCase()] : undefined,
   });
+
+  const matches = matchesResult.success ? matchesResult.value : [];
 
   return (
     <div className="space-y-6">

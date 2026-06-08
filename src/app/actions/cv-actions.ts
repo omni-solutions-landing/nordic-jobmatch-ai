@@ -3,16 +3,8 @@
 /**
  * CV Actions — Server Action pipeline
  *
- * Orchestrates the full CV ingestion lifecycle:
- *   FormData (PDF) → parseCv (multimodal) → stringifyCvForEmbedding → generateEmbedding → upsert via RPC
- *
- * This is a "succeed all or write nothing" pipeline: the database is only
- * touched after ALL AI steps complete successfully. If any step fails,
- * no partial data is written.
- *
- * The PDF is sent directly to Gemini via inlineData — no client-side text
- * extraction needed. Gemini reads the PDF natively, preserving layout,
- * tables, and formatting.
+ * Functional programming implementation of the CV ingestion lifecycle:
+ * Validation -> Auth -> Read -> Parse -> Embed -> Store.
  *
  * @module Server Action — runs exclusively on the server.
  */
@@ -25,54 +17,41 @@ import {
 import { createServerClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import type { CvStructuredData } from "@/lib/ai/cv-parser/schema";
-import type { Database, Json } from "@/lib/database.types";
+import type { Json } from "@/lib/database.types";
+import { Result, ok, fail } from "@/lib/fp/result";
+import { ProfileId } from "@/lib/fp/branded";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-/** Maximum PDF file size in bytes (4 MB). */
 const MAX_FILE_SIZE = 4 * 1024 * 1024;
-
 const ALLOWED_MIME_TYPES = ["application/pdf"] as const;
 
 // ─── Result Types ────────────────────────────────────────────────────────────
 
 interface PipelineSuccess {
-  success: true;
-  data: {
-    /** Validated structured CV data */
-    structuredData: CvStructuredData;
-    /** Parser confidence score [0.0–1.0] */
-    confidence: number;
-    /** Sections the parser flagged as ambiguous */
-    ambiguousSections: string[];
-    /** CV quality notes from the parser */
-    qualityNotes: string;
-    /** UUID of the cv_profiles row */
-    cvProfileId: string;
-    /** Original filename */
-    fileName: string;
+  readonly success: true;
+  readonly data: {
+    readonly structuredData: CvStructuredData;
+    readonly confidence: number;
+    readonly ambiguousSections: string[];
+    readonly qualityNotes: string;
+    readonly cvProfileId: string;
+    readonly fileName: string;
   };
-  timing: {
-    /** Gemini parsing latency in ms */
-    parseMs: number;
-    /** Embedding generation latency in ms */
-    embedMs: number;
-    /** Supabase RPC upsert latency in ms */
-    storeMs: number;
-    /** Total pipeline latency in ms */
-    totalMs: number;
+  readonly timing: {
+    readonly parseMs: number;
+    readonly embedMs: number;
+    readonly storeMs: number;
+    readonly totalMs: number;
   };
 }
 
 interface PipelineFailure {
-  success: false;
-  error: {
-    /** Which pipeline step failed */
-    step: "validation" | "parse" | "embed" | "store" | "auth";
-    /** Error code from the underlying module */
-    code: string;
-    /** Human-readable error message */
-    message: string;
+  readonly success: false;
+  readonly error: {
+    readonly step: "validation" | "parse" | "embed" | "store" | "auth";
+    readonly code: string;
+    readonly message: string;
   };
 }
 
@@ -80,9 +59,6 @@ export type CvPipelineResult = PipelineSuccess | PipelineFailure;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/**
- * Formats a vector as a pgvector-compatible string literal.
- */
 function vectorToString(embedding: number[]): string {
   return `[${embedding.join(",")}]`;
 }
@@ -103,98 +79,49 @@ function logStep(
   );
 }
 
-// ─── Main Pipeline ───────────────────────────────────────────────────────────
+// ─── Pipeline Functions ──────────────────────────────────────────────────────
 
-/**
- * Processes a PDF CV upload through the full AI pipeline and stores results.
- *
- * Pipeline:
- *   1. **Validate** — Check file exists, is PDF, is under 4MB
- *   2. **Auth** — Verify the caller owns the profile
- *   3. **Parse** — Gemini multimodal PDF → structured JSON (42-field schema)
- *   4. **Stringify** — Flatten to embedding-optimized text (bilingual anchors)
- *   5. **Embed** — Generate 768-d vector via text-embedding-004
- *   6. **Store** — Atomic upsert via `upsert_cv_profile` RPC
- *
- * The database write only occurs after all AI steps succeed.
- *
- * @param formData - FormData containing a "cv" field with the PDF file.
- * @param profileId - UUID of the authenticated user (must match auth.uid()).
- * @returns Pipeline result with structured data, timing, or error details.
- *
- * @example
- * ```tsx
- * // In a Client Component:
- * const formData = new FormData();
- * formData.append("cv", pdfFile);
- * const result = await uploadAndProcessCv(formData, user.id);
- *
- * if (result.success) {
- *   console.log("Confidence:", result.data.confidence);
- *   console.log("Parse time:", result.timing.parseMs, "ms");
- * } else {
- *   console.error(`Failed at ${result.error.step}: ${result.error.message}`);
- * }
- * ```
- */
-export async function uploadAndProcessCv(
-  formData: FormData,
-  profileId: string,
-): Promise<CvPipelineResult> {
-  const pipelineStart = performance.now();
-
-  // ── 0. File validation ────────────────────────────────────────────────────
-
+function validateFile(formData: FormData): Result<File, PipelineFailure["error"]> {
   const file = formData.get("cv");
 
   if (!file || !(file instanceof File)) {
-    return {
-      success: false,
-      error: {
-        step: "validation",
-        code: "NO_FILE",
-        message: "No CV file was uploaded. Please select a PDF file.",
-      },
-    };
+    return fail({
+      step: "validation",
+      code: "NO_FILE",
+      message: "No CV file was uploaded. Please select a PDF file.",
+    });
   }
 
   if (!ALLOWED_MIME_TYPES.includes(file.type as typeof ALLOWED_MIME_TYPES[number])) {
-    return {
-      success: false,
-      error: {
-        step: "validation",
-        code: "INVALID_FILE_TYPE",
-        message: `Invalid file type: "${file.type}". Only PDF files are accepted.`,
-      },
-    };
+    return fail({
+      step: "validation",
+      code: "INVALID_FILE_TYPE",
+      message: `Invalid file type: "${file.type}". Only PDF files are accepted.`,
+    });
   }
 
   if (file.size === 0) {
-    return {
-      success: false,
-      error: {
-        step: "validation",
-        code: "EMPTY_FILE",
-        message: "The uploaded file is empty.",
-      },
-    };
+    return fail({
+      step: "validation",
+      code: "EMPTY_FILE",
+      message: "The uploaded file is empty.",
+    });
   }
 
   if (file.size > MAX_FILE_SIZE) {
-    return {
-      success: false,
-      error: {
-        step: "validation",
-        code: "FILE_TOO_LARGE",
-        message: `File size (${(file.size / (1024 * 1024)).toFixed(1)}MB) exceeds the 4MB limit.`,
-      },
-    };
+    return fail({
+      step: "validation",
+      code: "FILE_TOO_LARGE",
+      message: `File size (${(file.size / (1024 * 1024)).toFixed(1)}MB) exceeds the 4MB limit.`,
+    });
   }
 
-  const fileName = file.name;
+  return ok(file);
+}
 
-  // ── 1. Auth check ────────────────────────────────────────────────────────
-
+async function verifyAuth(
+  profileId: ProfileId,
+): Promise<Result<void, PipelineFailure["error"]>> {
   const supabase = await createServerClient();
   const {
     data: { user },
@@ -202,42 +129,58 @@ export async function uploadAndProcessCv(
   } = await supabase.auth.getUser();
 
   if (authError || !user) {
-    return {
-      success: false,
-      error: {
-        step: "auth",
-        code: "UNAUTHENTICATED",
-        message: "You must be signed in to upload a CV.",
-      },
-    };
+    return fail({
+      step: "auth",
+      code: "UNAUTHENTICATED",
+      message: "You must be signed in to upload a CV.",
+    });
   }
 
   if (user.id !== profileId) {
-    return {
-      success: false,
-      error: {
-        step: "auth",
-        code: "FORBIDDEN",
-        message: "You can only upload a CV for your own profile.",
-      },
-    };
+    return fail({
+      step: "auth",
+      code: "FORBIDDEN",
+      message: "You can only upload a CV for your own profile.",
+    });
   }
 
-  // ── 2. Convert File to Buffer ────────────────────────────────────────────
+  return ok(undefined);
+}
 
+// ─── Main Pipeline ───────────────────────────────────────────────────────────
+
+export async function uploadAndProcessCv(
+  formData: FormData,
+  profileId: string,
+): Promise<CvPipelineResult> {
+  const pipelineStart = performance.now();
+  const brandedProfileId = profileId as ProfileId;
+
+  // 1. File Validation
+  const fileResult = validateFile(formData);
+  if (!fileResult.success) {
+    return { success: false, error: fileResult.error };
+  }
+  const file = fileResult.value;
+  const fileName = file.name;
+
+  // 2. Auth Check
+  const authResult = await verifyAuth(brandedProfileId);
+  if (!authResult.success) {
+    return { success: false, error: authResult.error };
+  }
+
+  // 3. Read Buffer
   const arrayBuffer = await file.arrayBuffer();
   const pdfBuffer = Buffer.from(arrayBuffer);
 
-  // ── 3. Parse CV (Gemini multimodal PDF) ──────────────────────────────────
-
-  let parseResult: CvParseResult;
+  // 4. Parse CV
   const parseStart = performance.now();
-
+  let parseResult: CvParseResult;
   try {
     parseResult = await parseCvWithRetry(pdfBuffer);
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "CV parsing failed.";
+    const message = error instanceof Error ? error.message : "CV parsing failed.";
     const code =
       error instanceof Error && "code" in error
         ? String((error as Record<string, unknown>).code)
@@ -255,7 +198,6 @@ export async function uploadAndProcessCv(
       error: { step: "parse", code, message },
     };
   }
-
   const parseMs = Math.round(performance.now() - parseStart);
   logStep("parse", parseMs, {
     status: "ok",
@@ -267,22 +209,14 @@ export async function uploadAndProcessCv(
     ambiguous_sections: parseResult.data.extraction_metadata.ambiguous_sections,
   });
 
-  // ── 4. Stringify for embedding ───────────────────────────────────────────
-
-  const embeddingText = stringifyCvForEmbedding(parseResult.data);
-
-  // ── 5. Generate embedding ────────────────────────────────────────────────
-
-  let embedding: number[];
+  // 5. Generate Embedding
   const embedStart = performance.now();
-
+  const embeddingText = stringifyCvForEmbedding(parseResult.data);
+  let embedding: number[];
   try {
-    embedding = await generateEmbedding(embeddingText, {
-      taskType: "query",
-    });
+    embedding = await generateEmbedding(embeddingText, { taskType: "query" });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Embedding generation failed.";
+    const message = error instanceof Error ? error.message : "Embedding generation failed.";
     const code =
       error instanceof Error && "code" in error
         ? String((error as Record<string, unknown>).code)
@@ -299,7 +233,6 @@ export async function uploadAndProcessCv(
       error: { step: "embed", code, message },
     };
   }
-
   const embedMs = Math.round(performance.now() - embedStart);
   logStep("embed", embedMs, {
     status: "ok",
@@ -307,12 +240,11 @@ export async function uploadAndProcessCv(
     dimensions: embedding.length,
   });
 
-  // ── 6. Store in Supabase via RPC ─────────────────────────────────────────
-
+  // 6. Store in Supabase
   const storeStart = performance.now();
-
+  const supabase = await createServerClient();
   const rpcArgs = {
-    p_profile_id: profileId,
+    p_profile_id: brandedProfileId,
     p_filename: fileName,
     p_raw_text: parseResult.rawJson,
     p_structured_data: JSON.parse(JSON.stringify(parseResult.data)) as Json,
@@ -321,10 +253,9 @@ export async function uploadAndProcessCv(
 
   const { data: cvProfileId, error: rpcError } = await supabase.rpc(
     "create_cv_profile",
-    // @ts-expect-error new create_cv_profile RPC is not yet in database.types.ts
+    // @ts-expect-error create_cv_profile type fallback
     rpcArgs,
   );
-
   const storeMs = Math.round(performance.now() - storeStart);
 
   if (rpcError) {
@@ -343,13 +274,10 @@ export async function uploadAndProcessCv(
       },
     };
   }
-
   logStep("store", storeMs, { status: "ok", cv_profile_id: cvProfileId });
 
-  // ── 7. Return success ───────────────────────────────────────────────────
-
+  // 7. Success
   const totalMs = Math.round(performance.now() - pipelineStart);
-
   logStep("complete", totalMs, {
     status: "ok",
     file_name: fileName,
@@ -363,8 +291,7 @@ export async function uploadAndProcessCv(
     data: {
       structuredData: parseResult.data,
       confidence: parseResult.data.extraction_metadata.overall_confidence,
-      ambiguousSections:
-        parseResult.data.extraction_metadata.ambiguous_sections,
+      ambiguousSections: parseResult.data.extraction_metadata.ambiguous_sections,
       qualityNotes: parseResult.data.extraction_metadata.cv_quality_notes,
       cvProfileId: cvProfileId ?? "",
       fileName,
@@ -380,11 +307,14 @@ export async function uploadAndProcessCv(
 
 /**
  * Activates a specific CV profile for the authenticated user.
- * Deactivates all other CVs via DB trigger automatically.
  */
-export async function activateCvAction(cvId: string): Promise<{ success: boolean; error?: string }> {
+export async function activateCvAction(
+  cvId: string,
+): Promise<{ readonly success: boolean; readonly error?: string }> {
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return { success: false, error: "Inte inloggad." };
@@ -408,9 +338,13 @@ export async function activateCvAction(cvId: string): Promise<{ success: boolean
 /**
  * Deletes a specific CV profile for the authenticated user.
  */
-export async function deleteCvAction(cvId: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteCvAction(
+  cvId: string,
+): Promise<{ readonly success: boolean; readonly error?: string }> {
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return { success: false, error: "Inte inloggad." };
