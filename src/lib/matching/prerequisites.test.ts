@@ -89,12 +89,23 @@ describe("checkMissingPrerequisites", () => {
     expect(checkMissingPrerequisites(["Finska"], cv)).toEqual(["Finska"]);
   });
 
+  it("matches language equivalents only as whole words, not substrings", () => {
+    const cv = makeCv(); // English (en) — "en" must not match inside words
+    // regression: "Hygienpass" contains the substring "en"
+    expect(checkMissingPrerequisites(["Hygienpass"], cv)).toEqual([
+      "Hygienpass",
+    ]);
+    // but a real phrase containing the language as a word still matches
+    expect(
+      checkMissingPrerequisites(["Flytande svenska i tal och skrift"], cv),
+    ).toEqual([]);
+  });
+
   it("reports requirements not covered anywhere in the CV", () => {
     const cv = makeCv();
-    expect(checkMissingPrerequisites(["Truckkort", "Excavator"], cv)).toEqual([
-      "Truckkort",
-      "Excavator",
-    ]);
+    expect(
+      checkMissingPrerequisites(["Truckkort", "Hygienpass", "Excavator"], cv),
+    ).toEqual(["Truckkort", "Hygienpass", "Excavator"]);
   });
 
   describe("driver license class hierarchy", () => {
@@ -147,6 +158,39 @@ describe("checkMissingPrerequisites", () => {
           makeCvWithLicenseClasses(["b"]),
         ),
       ).toEqual([]);
+    });
+
+    it("does not read a CE class out of the word 'license' (substring regression)", () => {
+      // "license" contains the substring "ce" — it must be treated as a
+      // generic license requirement, satisfied by any class, not as CE.
+      expect(
+        checkMissingPrerequisites(
+          ["Valid driver's license"],
+          makeCvWithLicenseClasses(["b"]),
+        ),
+      ).toEqual([]);
+      // still missing when no license is held at all
+      expect(
+        checkMissingPrerequisites(
+          ["Valid driver's license"],
+          makeCv({ certifications: [] }),
+        ),
+      ).toEqual(["Valid driver's license"]);
+    });
+
+    it("recognizes CE written as separate or hyphenated tokens", () => {
+      expect(
+        checkMissingPrerequisites(
+          ["Körkort C-E"],
+          makeCvWithLicenseClasses(["ce"]),
+        ),
+      ).toEqual([]);
+      expect(
+        checkMissingPrerequisites(
+          ["Körkort C-E"],
+          makeCvWithLicenseClasses(["c"]),
+        ),
+      ).toEqual(["Körkort C-E"]);
     });
 
     it("a generic license requirement is satisfied by holding any license", () => {

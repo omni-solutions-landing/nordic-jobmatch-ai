@@ -16,6 +16,45 @@ const LANGUAGE_MAP: Record<string, string[]> = {
   fi: ["finska", "finnish", "finsk", "fi", "suomi"],
 };
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Whole-word containment check. Unlike String.includes, short tokens such as
+ * "en" or "c" only match when delimited by non-alphanumerics — so "en" does
+ * not match inside "Hygienpass" and "ce" does not match inside "license".
+ */
+function includesWord(text: string, word: string): boolean {
+  if (!word) return false;
+  const re = new RegExp(
+    `(?<![\\p{L}\\p{N}])${escapeRegExp(word)}(?![\\p{L}\\p{N}])`,
+    "iu",
+  );
+  return re.test(text);
+}
+
+// "ce", "c e", "c-e" as whole tokens. RegExp constructor instead of a literal:
+// lookbehind in literals fails tsc's syntax check at target ES2017.
+const CE_CLASS_RE = new RegExp(
+  "(?<![\\p{L}\\p{N}])c[ -]?e(?![\\p{L}\\p{N}])",
+  "iu",
+);
+
+/**
+ * Extracts the driver-license class a requirement demands, if any.
+ * Matches whole tokens only ("CE-körkort", "klass C", "c e"), never
+ * substrings of unrelated words ("license" does not imply class CE).
+ */
+function parseRequiredLicenseClass(reqLower: string): string | null {
+  // CE first — otherwise the bare "c" rule would claim "c-e".
+  if (CE_CLASS_RE.test(reqLower)) return "ce";
+  if (includesWord(reqLower, "c")) return "c";
+  if (includesWord(reqLower, "b")) return "b";
+  if (includesWord(reqLower, "d")) return "d";
+  return null;
+}
+
 /**
  * Returns the subset of `hardRequirements` that the CV does not satisfy via
  * skills, certifications (incl. driver license class hierarchy), education,
@@ -87,25 +126,7 @@ export function checkMissingPrerequisites(
       const userClasses = certs.flatMap((c) => c.licenseClasses);
       const hasAnyLicense = userClasses.length > 0;
 
-      let requiredClass: string | null = null;
-      if (
-        reqLower.includes("ce") ||
-        reqLower.includes("c e") ||
-        reqLower.includes("c-e")
-      ) {
-        requiredClass = "ce";
-      } else if (
-        reqLower.includes("c") &&
-        !reqLower.includes("ce") &&
-        !reqLower.includes("c-e") &&
-        !reqLower.includes("c e")
-      ) {
-        requiredClass = "c";
-      } else if (reqLower.includes("b") && !reqLower.includes("be")) {
-        requiredClass = "b";
-      } else if (reqLower.includes("d")) {
-        requiredClass = "d";
-      }
+      const requiredClass = parseRequiredLicenseClass(reqLower);
 
       if (requiredClass === null) {
         if (hasAnyLicense) continue;
@@ -162,7 +183,7 @@ export function checkMissingPrerequisites(
       const userIso = l.iso.slice(0, 2);
       const equivalents = LANGUAGE_MAP[userIso] || [l.language, l.iso];
       return equivalents.some(
-        (eq) => eq.includes(reqLower) || reqLower.includes(eq),
+        (eq) => includesWord(reqLower, eq) || includesWord(eq, reqLower),
       );
     });
     if (matchInLang) continue;
