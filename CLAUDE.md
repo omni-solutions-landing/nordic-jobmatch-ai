@@ -1,5 +1,11 @@
 # CLAUDE.md — Nordic JobMatch AI
 
+## Working with Jari
+- Improving coder, not expert: brief explanations of non-obvious decisions,
+  skip the basics.
+- Say "I don't know" rather than guess.
+- @supabase/supabase-js pinned to 2.49.4 until @supabase/ssr updates.
+
 ## 0. Session Start Checklist
 
 - Read this file fully before touching the codebase.
@@ -119,7 +125,16 @@ nordic-jobmatch-ai/
 │       │
 │       ├── fp/
 │       │   ├── result.ts              # Result monad wrapper for type-safe error handling
+│       │   ├── result.test.ts         # Unit tests (Vitest)
 │       │   └── branded.ts             # Branded types (ProfileId, JobId, CvId) for compile-time safety
+│       │
+│       ├── matching/
+│       │   ├── prerequisites.ts       # checkMissingPrerequisites() + adjustMatchScore() (pure, testable)
+│       │   ├── prerequisites.test.ts  # Unit tests
+│       │   └── explanations.ts        # generateMatchExplanationsBatch() — ONE Gemini call per user + deterministic fallback
+│       │
+│       ├── test-utils/
+│       │   └── cv-fixture.ts          # makeCv() — schema-validated CvStructuredData test fixture builder
 │       │
 │       ├── harvesters/
 │       │   ├── harvester-pipeline.ts  # Generic pure functional pipeline orchestrator (executeHarvestPipeline)
@@ -138,7 +153,8 @@ nordic-jobmatch-ai/
 │           └── embeddings/            # 768-d Gemini Embedding 2 generators
 │               ├── index.ts           # Barrel export
 │               ├── generator.ts       # generateEmbedding() + generateEmbeddingsBatch()
-│               └── stringifiers.ts    # stringifyCvForEmbedding() + stringifyJobForEmbedding()
+│               ├── stringifiers.ts    # stringifyCvForEmbedding() + stringifyJobForEmbedding()
+│               └── stringifiers.test.ts # Unit tests
 │           │
 │           └── infrastructure/
 │               └── notifications/
@@ -153,8 +169,10 @@ nordic-jobmatch-ai/
 npm run dev          # Start dev server (Turbopack)
 npm run build        # Production build
 npm run start        # Serve production build
-npm run lint         # ESLint
+npm run lint         # ⚠️ BROKEN: Next.js 16 removed `next lint` and no ESLint config exists yet
 npm run typecheck    # tsc --noEmit (strict)
+npm run test         # Vitest (unit tests, src/**/*.test.ts)
+npm run test:watch   # Vitest watch mode
 npm run db:types     # Regenerate database.types.ts from live Supabase schema
 npm run db:push      # Push local migrations to remote Supabase
 npm run db:migrate   # Create a new migration file
@@ -216,6 +234,10 @@ FormData (PDF) → validateFile() → verifyAuth() → ArrayBuffer → Buffer
 | `src/proxy.ts` | Handles cookies session sync with Supabase and translations fallback next-intl routing. |
 | `src/app/actions/cv-actions.ts` | `uploadAndProcessCv` Server Action — processes and uploads candidate CVs using monad flows. |
 | `src/app/actions/match-actions.ts` | `getMatchesForUser` Server Action — matches job postings against active CV with keyword translations & country filters. |
+| `src/lib/matching/prerequisites.ts` | Pure matching logic: `checkMissingPrerequisites()` (skills/certs/license-class/education/language checks) and `adjustMatchScore()` (regulated-title and missing-prereq penalties). Extracted from match-actions for testability — "use server" files can only export async functions. |
+| `src/lib/matching/explanations.ts` | `generateMatchExplanationsBatch()` — explains ALL matches in one Gemini call (the CV is shared context; per-match calls were an N+1). Falls back to `generateDeterministicExplanation()` per match on any failure. |
+| `scripts/verify-embeddings.ts` | One-off: checks stored embeddings match the current embedding model (L2 norm + re-embed self-similarity). Run with `npx tsx`. |
+| `scripts/regenerate-embeddings.ts` | One-off: regenerates all stored embeddings with the current model after a model migration. Run with `npx tsx`. |
 | `src/app/actions/notification-actions.ts` | Server actions to update user notification preferences and save Web Push subscriptions. |
 | `src/lib/infrastructure/notifications/service.ts` | Functional notification engine to scan, filter, and send email and push alerts. |
 
@@ -235,5 +257,6 @@ FormData (PDF) → validateFile() → verifyAuth() → ArrayBuffer → Buffer
 - **`source_url` UNIQUE** on `job_postings` — This is the deduplication key for all harvesters.
 - **Multi-CV support** — The database trigger automatically manages active/inactive flags.
 - **Vercel Hobby plan limitations** — `vercel.json` has been simplified to `{ "framework": "nextjs" }`. Regional routing configurations (`regions: ["arn1"]`) are omitted.
-- **Embedding model** — model is gemini-embedding-001 (text-embedding-004 was retired by Google 2026-01-14). 768-d is requested via outputDimensionality. Changing the model invalidates ALL stored embeddings — both cv_profiles.skills_embedding and job_postings.job_embedding must be regenerated.
+- **Embedding model** — model is gemini-embedding-001 (text-embedding-004 was retired by Google 2026-01-14). 768-d is requested via outputDimensionality. Changing the model invalidates ALL stored embeddings — both cv_profiles.skills_embedding and job_postings.job_embedding must be regenerated (use `scripts/regenerate-embeddings.ts`, verify with `scripts/verify-embeddings.ts`). Last verified/regenerated: 2026-06-10.
+- **Parser fallback models** — `parser.ts` falls back to gemini-2.0-flash then gemini-3.5-flash on transient errors. gemini-3.5-flash is a real model (verified via ListModels 2026-06-10, version 3.5-flash-05-2026).
 - **Harvester mock fallbacks** — mock fallbacks only activate when ALLOW_MOCK_FALLBACKS=true. Never set this flag in production.

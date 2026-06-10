@@ -8,13 +8,20 @@
  * @module Server Action — runs exclusively on the server.
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createServerClient } from "@/lib/supabase/server";
 import type { CvStructuredData } from "@/lib/ai/cv-parser/schema";
 import type { Database, Json } from "@/lib/database.types";
 import { translateKeyword } from "@/lib/ai/translation";
 import { Result, ok, fail } from "@/lib/fp/result";
 import { ProfileId } from "@/lib/fp/branded";
+import {
+  checkMissingPrerequisites,
+  adjustMatchScore,
+} from "@/lib/matching/prerequisites";
+import {
+  generateDeterministicExplanation,
+  generateMatchExplanationsBatch,
+} from "@/lib/matching/explanations";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -145,260 +152,6 @@ const MOCK_JOBS = [
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const LANGUAGE_MAP: Record<string, string[]> = {
-  sv: ["svenska", "swedish", "svensk", "sv"],
-  en: ["engelska", "english", "engelsk", "en"],
-  no: ["norska", "norwegian", "norsk", "no"],
-  da: ["danska", "danish", "dansk", "da"],
-  fi: ["finska", "finnish", "finsk", "fi", "suomi"],
-};
-
-function checkMissingPrerequisites(
-  hardRequirements: string[],
-  structuredData?: CvStructuredData,
-): string[] {
-  if (!structuredData) {
-    return [...hardRequirements];
-  }
-
-  const missing: string[] = [];
-
-  const technicalSkills = (structuredData.skills?.technical || []).map((s) =>
-    s.toLowerCase().trim(),
-  );
-  const softSkills = (structuredData.skills?.soft || []).map((s) =>
-    s.toLowerCase().trim(),
-  );
-  const toolsSkills = (structuredData.skills?.tools_and_platforms || []).map(
-    (s) => s.toLowerCase().trim(),
-  );
-  const industrySkills = (structuredData.skills?.industry_specific || []).map(
-    (s) => s.toLowerCase().trim(),
-  );
-  const machinerySkills = (
-    structuredData.skills?.machinery_and_equipment || []
-  ).map((s) => s.toLowerCase().trim());
-
-  const allSkills = [
-    ...technicalSkills,
-    ...softSkills,
-    ...toolsSkills,
-    ...industrySkills,
-    ...machinerySkills,
-  ];
-
-  const certs = (structuredData.certifications || []).map((c) => ({
-    name: (c.name || "").toLowerCase().trim(),
-    nameEnglish: (c.name_english || "").toLowerCase().trim(),
-    nordicCode: (c.nordic_code || "").toLowerCase().trim(),
-    licenseClasses: (c.license_classes || []).map((l) =>
-      l.toLowerCase().trim(),
-    ),
-  }));
-
-  const education = (structuredData.education || []).map((e) => ({
-    degree: (e.degree || "").toLowerCase().trim(),
-    degreeOriginal: (e.degree_original || "").toLowerCase().trim(),
-    field: (e.field_of_study || "").toLowerCase().trim(),
-  }));
-
-  const languages = (structuredData.languages || []).map((l) => ({
-    language: (l.language || "").toLowerCase().trim(),
-    iso: (l.iso_code || "").toLowerCase().trim(),
-  }));
-
-  for (const req of hardRequirements) {
-    const reqLower = req.toLowerCase().trim();
-    if (!reqLower) continue;
-
-    const isLicenseReq =
-      reqLower.includes("körkort") ||
-      reqLower.includes("license") ||
-      reqLower.includes("klasse ");
-    if (isLicenseReq) {
-      const userClasses = certs.flatMap((c) => c.licenseClasses);
-      const hasAnyLicense = userClasses.length > 0;
-
-      let requiredClass: string | null = null;
-      if (
-        reqLower.includes("ce") ||
-        reqLower.includes("c e") ||
-        reqLower.includes("c-e")
-      ) {
-        requiredClass = "ce";
-      } else if (
-        reqLower.includes("c") &&
-        !reqLower.includes("ce") &&
-        !reqLower.includes("c-e") &&
-        !reqLower.includes("c e")
-      ) {
-        requiredClass = "c";
-      } else if (reqLower.includes("b") && !reqLower.includes("be")) {
-        requiredClass = "b";
-      } else if (reqLower.includes("d")) {
-        requiredClass = "d";
-      }
-
-      if (requiredClass === null) {
-        if (hasAnyLicense) continue;
-      } else {
-        if (
-          requiredClass === "b" &&
-          (userClasses.includes("b") ||
-            userClasses.includes("c") ||
-            userClasses.includes("ce"))
-        ) {
-          continue;
-        }
-        if (
-          requiredClass === "c" &&
-          (userClasses.includes("c") || userClasses.includes("ce"))
-        ) {
-          continue;
-        }
-        if (requiredClass === "ce" && userClasses.includes("ce")) {
-          continue;
-        }
-        if (requiredClass === "d" && userClasses.includes("d")) {
-          continue;
-        }
-      }
-    }
-
-    const matchInSkills = allSkills.some(
-      (skill) =>
-        skill === reqLower ||
-        skill.includes(reqLower) ||
-        reqLower.includes(skill),
-    );
-    if (matchInSkills) continue;
-
-    const matchInCerts = certs.some(
-      (c) =>
-        c.name.includes(reqLower) ||
-        c.nameEnglish.includes(reqLower) ||
-        c.nordicCode === reqLower ||
-        c.licenseClasses.includes(reqLower),
-    );
-    if (matchInCerts) continue;
-
-    const matchInEdu = education.some(
-      (e) =>
-        e.degree.includes(reqLower) ||
-        e.degreeOriginal.includes(reqLower) ||
-        e.field.includes(reqLower),
-    );
-    if (matchInEdu) continue;
-
-    const matchInLang = languages.some((l) => {
-      const userIso = l.iso.slice(0, 2);
-      const equivalents = LANGUAGE_MAP[userIso] || [l.language, l.iso];
-      return equivalents.some(
-        (eq) => eq.includes(reqLower) || reqLower.includes(eq),
-      );
-    });
-    if (matchInLang) continue;
-
-    missing.push(req);
-  }
-
-  return missing;
-}
-
-function generateDeterministicExplanation(
-  matchPercentage: number,
-  country: string,
-  missingPrerequisites: string[],
-): string {
-  const isNorway = country === "NO";
-
-  if (isNorway) {
-    if (missingPrerequisites.length === 0) {
-      return `Din profil matcher denne stillingen med ${matchPercentage}% basert på din erfaring og kompetanse. Du oppfyller alle formelle krav til stillingen.`;
-    } else {
-      const missingList = missingPrerequisites.join(", ");
-      return `Din profil matcher denne stillingen med ${matchPercentage}% basert på din erfaring, men du mangler følgende formelle krav: ${missingList}.`;
-    }
-  } else {
-    if (missingPrerequisites.length === 0) {
-      return `Din profil matchar denna tjänst med ${matchPercentage}% baserat på din erfarenhet och kompetens. Du uppfyller alla formella krav för tjänsten.`;
-    } else {
-      const missingList = missingPrerequisites.join(", ");
-      return `Din profil matchar denna tjänst med ${matchPercentage}% baserat på din erfarenhet, men du saknar följande formella krav: ${missingList}.`;
-    }
-  }
-}
-
-export async function getMatchExplanation(
-  structuredData: CvStructuredData,
-  job: {
-    readonly title: string;
-    readonly company: string;
-    readonly description: string;
-    readonly country: string;
-    readonly hard_requirements: string[];
-  },
-  similarity: number,
-  missingPrerequisites: string[],
-): Promise<string> {
-  const matchPercentage = Math.round(similarity * 100);
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return generateDeterministicExplanation(
-      matchPercentage,
-      job.country,
-      missingPrerequisites,
-    );
-  }
-
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      systemInstruction:
-        "You are a professional recruitment advisor helping Nordic job seekers. Analyze the match between the user's CV and the job posting. Explain briefly (in 2-3 sentences) why they are a match, highlighting their key strengths and noting any missing requirements. Write the response in Swedish if the job is in Sweden (country: SE), Norwegian if in Norway (country: NO), or English otherwise.",
-    });
-
-    const prompt = `
-User CV Structured Data: ${JSON.stringify(structuredData)}
-Job Posting:
-- Title: ${job.title}
-- Company: ${job.company}
-- Location/Country: ${job.country}
-- Hard Requirements: ${JSON.stringify(job.hard_requirements)}
-Match Score: ${matchPercentage}%
-Missing Requirements: ${JSON.stringify(missingPrerequisites)}
-
-Generate a highly professional match explanation summary (2-3 sentences) in the appropriate language (Swedish for SE, Norwegian for NO, English for others). Do not return markdown, just raw text.
-    `;
-
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        maxOutputTokens: 250,
-        temperature: 0.3,
-      },
-    });
-
-    const text = result.response.text().trim();
-    if (text) {
-      return text;
-    }
-  } catch (error) {
-    console.warn(
-      "Gemini match explanation failed (possibly quota hit). Falling back to deterministic explanation.",
-      error,
-    );
-  }
-
-  return generateDeterministicExplanation(
-    matchPercentage,
-    job.country,
-    missingPrerequisites,
-  );
-}
-
 function processMockMatches(structuredData?: CvStructuredData): JobMatch[] {
   const mockScores = [0.88, 0.79, 0.74, 0.67, 0.58];
 
@@ -409,59 +162,12 @@ function processMockMatches(structuredData?: CvStructuredData): JobMatch[] {
       structuredData,
     );
 
-    let adjustedScore = score;
-
-    const titleLower = job.title.toLowerCase();
-    const cvTextLower = JSON.stringify(structuredData || {}).toLowerCase();
-    const regulatedTitles = [
-      "optiker",
-      "sjuksköterska",
-      "sjukskötare",
-      "sykepleier",
-      "nurse",
-      "tandläkare",
-      "tannlege",
-      "läkare",
-      "lege",
-      "farmaceut",
-      "apotekare",
-      "psykolog",
-      "systemutveckler",
-      "software engineer",
-      "utvikler",
-    ];
-    const isRegulatedTitle = regulatedTitles.some((term) =>
-      titleLower.includes(term),
+    const adjustedScore = adjustMatchScore(
+      score,
+      job.title,
+      structuredData,
+      missing,
     );
-    if (isRegulatedTitle) {
-      const hasCredential = regulatedTitles.some(
-        (term) => titleLower.includes(term) && cvTextLower.includes(term),
-      );
-      if (!hasCredential) {
-        adjustedScore = 0;
-      }
-    }
-
-    if (adjustedScore > 0 && missing.length > 0) {
-      const hasRegulatedRequirement = missing.some((req) => {
-        const reqLower = req.toLowerCase();
-        return (
-          reqLower.includes("legitimerad") ||
-          reqLower.includes("sjuksköterska") ||
-          reqLower.includes("optiker") ||
-          reqLower.includes("fagbrev") ||
-          reqLower.includes("hms-kort") ||
-          reqLower.includes("ykb") ||
-          reqLower.includes("körkort") ||
-          reqLower.includes("license")
-        );
-      });
-      if (hasRegulatedRequirement) {
-        adjustedScore = 0;
-      } else {
-        adjustedScore = Math.max(0, adjustedScore - 0.15 * missing.length);
-      }
-    }
 
     const explanation = generateDeterministicExplanation(
       Math.round(adjustedScore * 100),
@@ -626,7 +332,14 @@ export async function getMatchesForUser(
     const jobsMap = new Map(jobs?.map((j) => [j.id, j]));
     const structuredData = cvProfile.structured_data as unknown as CvStructuredData;
 
-    const results: JobMatch[] = [];
+    // First pass: score and filter. Explanations are generated afterwards in
+    // a single batched Gemini call (one per user, not one per match).
+    type JobRow = NonNullable<ReturnType<typeof jobsMap.get>>;
+    const candidates: Array<{
+      job: JobRow;
+      adjustedScore: number;
+      missingPrerequisites: string[];
+    }> = [];
 
     for (const match of finalMatches) {
       const job = jobsMap.get(match.id);
@@ -637,98 +350,62 @@ export async function getMatchesForUser(
         structuredData,
       );
 
-      let adjustedScore = match.similarity;
-
-      const titleLower = job.title.toLowerCase();
-      const cvTextLower = JSON.stringify(structuredData || {}).toLowerCase();
-      const regulatedTitles = [
-        "optiker",
-        "sjuksköterska",
-        "sjukskötare",
-        "sykepleier",
-        "nurse",
-        "tandläkare",
-        "tannlege",
-        "läkare",
-        "lege",
-        "farmaceut",
-        "apotekare",
-        "psykolog",
-        "systemutveckler",
-        "software engineer",
-        "utvikler",
-      ];
-      const isRegulatedTitle = regulatedTitles.some((term) =>
-        titleLower.includes(term),
+      const adjustedScore = adjustMatchScore(
+        match.similarity,
+        job.title,
+        structuredData,
+        missingPrerequisites,
       );
-      if (isRegulatedTitle) {
-        const hasCredential = regulatedTitles.some(
-          (term) => titleLower.includes(term) && cvTextLower.includes(term),
-        );
-        if (!hasCredential) {
-          adjustedScore = 0;
-        }
-      }
-
-      if (adjustedScore > 0 && missingPrerequisites.length > 0) {
-        const hasRegulatedRequirement = missingPrerequisites.some((req) => {
-          const reqLower = req.toLowerCase();
-          return (
-            reqLower.includes("legitimerad") ||
-            reqLower.includes("sjuksköterska") ||
-            reqLower.includes("optiker") ||
-            reqLower.includes("fagbrev") ||
-            reqLower.includes("hms-kort") ||
-            reqLower.includes("ykb") ||
-            reqLower.includes("körkort") ||
-            reqLower.includes("license")
-          );
-        });
-
-        if (hasRegulatedRequirement) {
-          adjustedScore = 0;
-        } else {
-          adjustedScore = Math.max(
-            0,
-            adjustedScore - 0.15 * missingPrerequisites.length,
-          );
-        }
-      }
 
       if (adjustedScore < threshold) {
         continue;
       }
 
-      const explanationSummary = await getMatchExplanation(
-        structuredData,
-        job,
-        adjustedScore,
-        missingPrerequisites,
-      );
-
-      results.push({
-        job_posting: {
-          id: job.id,
-          title: job.title,
-          company: job.company,
-          description: job.description,
-          location: job.location,
-          country: job.country,
-          source_url: job.source_url,
-          original_language: job.original_language,
-          salary_info: job.salary_info,
-          hard_requirements: job.hard_requirements,
-          expires_at: job.expires_at,
-          created_at: job.created_at,
-        },
-        match_score: adjustedScore,
-        missing_prerequisites: missingPrerequisites,
-        explanation_summary: explanationSummary,
-      });
+      candidates.push({ job, adjustedScore, missingPrerequisites });
     }
 
+    const explanations = await generateMatchExplanationsBatch(
+      structuredData,
+      candidates.map((c) => ({
+        job: {
+          title: c.job.title,
+          company: c.job.company,
+          country: c.job.country,
+          hard_requirements: c.job.hard_requirements || [],
+        },
+        similarity: c.adjustedScore,
+        missingPrerequisites: c.missingPrerequisites,
+      })),
+    );
+
+    const results: JobMatch[] = candidates.map((c, i) => ({
+      job_posting: {
+        id: c.job.id,
+        title: c.job.title,
+        company: c.job.company,
+        description: c.job.description,
+        location: c.job.location,
+        country: c.job.country,
+        source_url: c.job.source_url,
+        original_language: c.job.original_language,
+        salary_info: c.job.salary_info,
+        hard_requirements: c.job.hard_requirements,
+        expires_at: c.job.expires_at,
+        created_at: c.job.created_at,
+      },
+      match_score: c.adjustedScore,
+      missing_prerequisites: c.missingPrerequisites,
+      explanation_summary:
+        explanations[i] ??
+        generateDeterministicExplanation(
+          Math.round(c.adjustedScore * 100),
+          c.job.country,
+          c.missingPrerequisites,
+        ),
+    }));
+
     return ok(results.sort((a, b) => b.match_score - a.match_score));
-  } catch (error: any) {
+  } catch (error) {
     return fail(error instanceof Error ? error : new Error(String(error)));
   }
 }
