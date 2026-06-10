@@ -57,8 +57,8 @@ export function CvManager({ cvs }: CvManagerProps) {
   return (
     <div className="space-y-4">
       {/* Card header: title + delete-active-CV + add */}
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-bold text-white flex items-center gap-2">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h2 className="text-lg font-bold text-white flex items-center gap-2 whitespace-nowrap">
           <svg className="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 7v12m0 0l-4-4m4 4l4-4M16 17V5m0 0l-4 4m4-4l4 4" />
           </svg>
@@ -122,21 +122,22 @@ export function CvManager({ cvs }: CvManagerProps) {
           return (
             <div
               key={cv.id}
-              className={`p-4 rounded-xl border transition-all duration-300 flex flex-wrap items-center justify-between gap-3 min-w-0 overflow-hidden ${
+              className={`p-4 rounded-xl border transition-all duration-300 min-w-0 overflow-hidden ${
                 isSelected
                   ? "bg-surface-2/60 border-aurora-green/30 shadow-lg shadow-aurora-green/5"
                   : "bg-surface-1 border-neutral-800 hover:border-neutral-700"
               }`}
             >
-              <div className="flex items-center gap-3 min-w-0 flex-1">
+              {/* Line 1: icon + filename (filename gets the full remaining width) */}
+              <div className="flex items-center gap-3 min-w-0">
                 <div
-                  className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                  className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 border ${
                     isSelected
                       ? "bg-aurora-green/10 border-aurora-green/20 text-aurora-green"
                       : "bg-surface-2 border-neutral-800 text-neutral-400"
                   }`}
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -145,17 +146,21 @@ export function CvManager({ cvs }: CvManagerProps) {
                     />
                   </svg>
                 </div>
-                <div className="min-w-0">
-                  <h4 className="text-sm font-semibold text-white truncate pr-2">
-                    {cv.filename}
-                  </h4>
-                  <p className="text-xs text-neutral-500 mt-0.5">Uppdaterat {formattedDate}</p>
-                </div>
+                <h4
+                  className="text-sm font-semibold text-white truncate min-w-0 flex-1"
+                  title={cv.filename}
+                >
+                  {cv.filename}
+                </h4>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              {/* Line 2: date + active state */}
+              <div className="flex items-center justify-between gap-2 mt-2.5">
+                <p className="text-xs text-neutral-500 truncate">
+                  Uppdaterat {formattedDate}
+                </p>
                 {isSelected ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full bg-aurora-green/10 text-aurora-green border border-aurora-green/20">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full bg-aurora-green/10 text-aurora-green border border-aurora-green/20 shrink-0">
                     <span className="h-1.5 w-1.5 rounded-full bg-aurora-green animate-pulse" />
                     Aktivt
                   </span>
@@ -163,7 +168,7 @@ export function CvManager({ cvs }: CvManagerProps) {
                   <button
                     onClick={() => handleActivate(cv.id)}
                     disabled={loadingId !== null}
-                    className="px-3 py-1.5 text-xs font-semibold text-neutral-300 bg-surface-2 hover:bg-surface-3 border border-neutral-800 rounded-lg hover:text-white transition-all disabled:opacity-50"
+                    className="px-3 py-1.5 text-xs font-semibold text-neutral-300 bg-surface-2 hover:bg-surface-3 border border-neutral-800 rounded-lg hover:text-white transition-all disabled:opacity-50 shrink-0"
                   >
                     {loadingId === cv.id ? "Aktiverar..." : "Aktivera"}
                   </button>
