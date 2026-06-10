@@ -57,8 +57,11 @@ export default async function ProfilePage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left column - Account info and CV Manager */}
-        <div className="lg:col-span-1 space-y-6">
+        {/* Left column - Account info and CV Manager.
+            min-w-0: lets the grid column shrink below content width so long
+            unbreakable strings (CV filenames) truncate instead of pushing
+            the card content out of view. */}
+        <div className="lg:col-span-1 min-w-0 space-y-6">
           {/* Account info card */}
           <section className="bg-surface-1 border border-neutral-800 rounded-2xl p-6">
             <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
@@ -131,7 +134,7 @@ export default async function ProfilePage() {
         </div>
 
         {/* Right column - Active CV Details */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 min-w-0 space-y-6">
           {cvData ? (
             <>
               {/* CV Summary Section */}
