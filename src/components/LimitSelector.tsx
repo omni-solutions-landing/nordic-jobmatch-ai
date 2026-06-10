@@ -2,10 +2,14 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 
-export function LimitSelector() {
+export function LimitSelector({
+  defaultLimit = "10",
+}: {
+  defaultLimit?: "10" | "25" | "50" | "100";
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const currentLimit = searchParams.get("limit") || "10";
+  const currentLimit = searchParams.get("limit") || defaultLimit;
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const params = new URLSearchParams(searchParams.toString());

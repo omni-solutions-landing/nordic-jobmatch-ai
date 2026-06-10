@@ -19,6 +19,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { generateEmbedding } from "@/lib/ai/embeddings";
 import { translateKeyword } from "@/lib/ai/translation";
 import { expandKeywordsWithTranslations } from "@/lib/search/keywords";
+import { rankSearchResults } from "@/lib/search/ranking";
 import { Result, ok, fail } from "@/lib/fp/result";
 import type { Database, Json } from "@/lib/database.types";
 
@@ -53,8 +54,13 @@ const JOB_COLUMNS =
 const VALID_COUNTRIES = ["SE", "NO", "DK", "FI"] as const;
 type NordicCountry = (typeof VALID_COUNTRIES)[number];
 
-/** Semantic floor used only for the keyword-less retry, to avoid noise. */
-const SEMANTIC_ONLY_THRESHOLD = 0.35;
+/**
+ * Minimum cosine similarity for query searches — per product decision
+ * (2026-06-10), only jobs above a 50% match are shown.
+ */
+const SEARCH_MATCH_THRESHOLD = 0.5;
+/** Over-fetch size so country-priority ranking can pick the true top-N. */
+const RANKING_POOL_SIZE = 100;
 
 // ─── Keyword-only fallback ───────────────────────────────────────────────────
 
@@ -81,12 +87,14 @@ async function keywordOnlySearch(
     .filter((k) => k.length > 1)
     .slice(0, 25);
 
+  const applyCountryPriority = opts.countries.length !== 1;
+
   let query = supabase
     .from("job_postings")
     .select(JOB_COLUMNS)
     .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
     .order("created_at", { ascending: false })
-    .limit(opts.limit);
+    .limit(applyCountryPriority ? RANKING_POOL_SIZE : opts.limit);
 
   if (patterns.length > 0) {
     query = query.or(
@@ -103,7 +111,12 @@ async function keywordOnlySearch(
   if (error) {
     return fail(new Error(`Jobbsökningen misslyckades: ${error.message}`));
   }
-  return ok((data ?? []).map((job) => ({ ...job, similarity: null })));
+  return ok(
+    rankSearchResults(
+      (data ?? []).map((job) => ({ ...job, similarity: null })),
+      { applyCountryPriority, limit: opts.limit },
+    ),
+  );
 }
 
 // ─── Main Action ─────────────────────────────────────────────────────────────
@@ -120,13 +133,17 @@ export async function searchJobs(
       return fail(new Error("Du måste vara inloggad för att söka jobb."));
     }
 
-    const limit = Math.min(Math.max(options.limit ?? 25, 1), 100);
+    const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
     const countries = (options.countries ?? [])
       .map((c) => c.toUpperCase())
       .filter((c): c is NordicCountry =>
         (VALID_COUNTRIES as readonly string[]).includes(c),
       );
     const query = options.query?.trim() ?? "";
+
+    // Country priority (SE > FI > NO > DK) applies to cross-border results
+    // only; a country-specific search keeps pure relevance/recency order.
+    const applyCountryPriority = countries.length !== 1;
 
     // ── Browse mode: no query → newest postings ──
     if (query.length === 0) {
@@ -135,7 +152,7 @@ export async function searchJobs(
         .select(JOB_COLUMNS)
         .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
         .order("created_at", { ascending: false })
-        .limit(limit);
+        .limit(applyCountryPriority ? RANKING_POOL_SIZE : limit);
       if (countries.length > 0) {
         browse = browse.in("country", countries);
       }
@@ -145,7 +162,10 @@ export async function searchJobs(
         return fail(new Error(`Jobbsökningen misslyckades: ${error.message}`));
       }
       return ok(
-        (data ?? []).map((job) => ({ ...job, similarity: null })),
+        rankSearchResults(
+          (data ?? []).map((job) => ({ ...job, similarity: null })),
+          { applyCountryPriority, limit },
+        ),
       );
     }
 
@@ -184,7 +204,7 @@ export async function searchJobs(
     // The RPC supports a single country filter; multi-country selections are
     // over-fetched and filtered here (same approach as getMatchesForUser).
     const filterCountry = countries.length === 1 ? countries[0] : undefined;
-    const matchCount = countries.length > 1 ? 100 : limit;
+    const matchCount = applyCountryPriority ? RANKING_POOL_SIZE : limit;
 
     const runRpc = (keywords: string[], threshold: number) =>
       supabase.rpc("match_jobs_with_keywords", {
@@ -195,15 +215,15 @@ export async function searchJobs(
         filter_country: filterCountry,
       });
 
-    // Keyword-filtered first (threshold 0: keywords constrain, similarity
-    // ranks); pure semantic fallback when keywords are too strict.
-    const first = await runRpc(matchKeywords, 0);
+    // Keyword-filtered first; pure semantic fallback when the keyword
+    // filter is too strict. Both respect the 50% relevance floor.
+    const first = await runRpc(matchKeywords, SEARCH_MATCH_THRESHOLD);
     if (first.error) {
       return fail(new Error(`Jobbsökningen misslyckades: ${first.error.message}`));
     }
     let hits = first.data;
     if (!hits || hits.length === 0) {
-      const retry = await runRpc([], SEMANTIC_ONLY_THRESHOLD);
+      const retry = await runRpc([], SEARCH_MATCH_THRESHOLD);
       if (retry.error) {
         return fail(
           new Error(`Jobbsökningen misslyckades: ${retry.error.message}`),
@@ -216,13 +236,17 @@ export async function searchJobs(
     if (countries.length > 1) {
       filteredHits = filteredHits.filter((h) => countries.includes(h.country));
     }
-    filteredHits = filteredHits.slice(0, limit);
-    if (filteredHits.length === 0) {
+    // Rank the full pool (country priority + relevance), THEN take top-N.
+    const rankedHits = rankSearchResults(filteredHits, {
+      applyCountryPriority,
+      limit,
+    });
+    if (rankedHits.length === 0) {
       return ok([]);
     }
 
     // The RPC returns a slim row — fetch full posting details for the cards.
-    const ids = filteredHits.map((h) => h.id);
+    const ids = rankedHits.map((h) => h.id);
     const { data: jobs, error: jobsError } = await supabase
       .from("job_postings")
       .select(JOB_COLUMNS)
@@ -233,7 +257,7 @@ export async function searchJobs(
 
     const jobsById = new Map((jobs ?? []).map((j) => [j.id, j]));
     const results: JobSearchResult[] = [];
-    for (const hit of filteredHits) {
+    for (const hit of rankedHits) {
       const job = jobsById.get(hit.id);
       if (!job) continue;
       results.push({ ...job, similarity: hit.similarity });

@@ -116,7 +116,7 @@ export default async function SearchPage({
   searchParams: Promise<{ q?: string; limit?: string; country?: string }>;
 }) {
   const { q, limit: limitParam, country } = await searchParams;
-  const limit = limitParam ? parseInt(limitParam, 10) : 25;
+  const limit = limitParam ? parseInt(limitParam, 10) : 50;
 
   const searchResult = await searchJobs({
     query: q,
@@ -148,7 +148,7 @@ export default async function SearchPage({
       <div className="p-4 bg-surface-1/40 border border-neutral-800 rounded-2xl flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <KeywordSearch />
-          <LimitSelector />
+          <LimitSelector defaultLimit="50" />
         </div>
         <div className="border-t border-neutral-800/40 pt-4">
           <CountrySelector />
