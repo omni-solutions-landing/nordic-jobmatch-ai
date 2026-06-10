@@ -237,6 +237,7 @@ FormData (PDF) → validateFile() → verifyAuth() → ArrayBuffer → Buffer
 | `scripts/verify-embeddings.ts` | One-off: checks stored embeddings match the current embedding model (L2 norm + re-embed self-similarity). Run with `npx tsx`. |
 | `scripts/regenerate-embeddings.ts` | One-off: regenerates all stored embeddings with the current model after a model migration. Run with `npx tsx`. |
 | `src/app/actions/notification-actions.ts` | Server actions to update user notification preferences and save Web Push subscriptions. |
+| `src/lib/cv/delete-cv.ts` | `deleteCvForUser()` — client-injectable CV deletion core (testable outside Server Actions). Deleting the active CV promotes the most recently updated remaining CV; `matches` rows are kept (notification audit log). |
 | `src/lib/infrastructure/notifications/service.ts` | Functional notification engine to scan, filter, and send email and push alerts. |
 
 ---
@@ -251,6 +252,7 @@ FormData (PDF) → validateFile() → verifyAuth() → ArrayBuffer → Buffer
 - **`database.types.ts`** — Generated file. When reading `structured_data`, cast it to `CvStructuredData` after Zod validation.
 - **Env vars** — Required: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `CRON_SECRET`, `NEXT_PUBLIC_SITE_URL` (production). Optional: `RESEND_API_KEY` (email), `NEXT_PUBLIC_VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` (push), `FACEBOOK_ACCESS_TOKEN` + `FACEBOOK_GROUP_IDS` (FB harvester), `GEMINI_EMBEDDING_MODEL` (override), `ALLOW_MOCK_FALLBACKS` (dev only). See `.env.local.example`.
 - **Next.js 16 proxy deprecation** — `src/proxy.ts` has replaced `src/middleware.ts` to adhere to Next.js 16 conventions. It must export a default function or a named function `proxy`.
+- **revalidatePath with localized routes** — pages live under `/[locale]/(dashboard)/…`, so `revalidatePath("/profile")` matches nothing. Always use the route file path form: `revalidatePath("/[locale]/(dashboard)/profile", "page")`. A wrong path fails silently (stale UI, "the action didn't work").
 - **Batch embedding limit** — Gemini allows max 100 texts per `batchEmbedContents` call.
 - **`source_url` UNIQUE** on `job_postings` — This is the deduplication key for all harvesters.
 - **Multi-CV support** — The database trigger automatically manages active/inactive flags.

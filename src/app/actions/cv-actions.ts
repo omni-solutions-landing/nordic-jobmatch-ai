@@ -20,6 +20,7 @@ import type { CvStructuredData } from "@/lib/ai/cv-parser/schema";
 import type { Json } from "@/lib/database.types";
 import { Result, ok, fail } from "@/lib/fp/result";
 import { ProfileId } from "@/lib/fp/branded";
+import { deleteCvForUser } from "@/lib/cv/delete-cv";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -304,6 +305,18 @@ export async function uploadAndProcessCv(
 }
 
 /**
+ * Invalidates the localized dashboard pages that render CV state.
+ *
+ * NOTE: the routes live under /[locale]/(dashboard)/ — plain "/profile"
+ * never matches them, which is exactly how CV deletion looked broken: the
+ * row was deleted but the router cache kept serving the stale page.
+ */
+function revalidateCvPages(): void {
+  revalidatePath("/[locale]/(dashboard)/profile", "page");
+  revalidatePath("/[locale]/(dashboard)/matches", "page");
+}
+
+/**
  * Activates a specific CV profile for the authenticated user.
  */
 export async function activateCvAction(
@@ -329,13 +342,15 @@ export async function activateCvAction(
     return { success: false, error: error.message };
   }
 
-  revalidatePath("/profile");
-  revalidatePath("/matches");
+  revalidateCvPages();
   return { success: true };
 }
 
 /**
  * Deletes a specific CV profile for the authenticated user.
+ *
+ * If the deleted CV was active, the most recently updated remaining CV is
+ * promoted to active (see src/lib/cv/delete-cv.ts for the rationale).
  */
 export async function deleteCvAction(
   cvId: string,
@@ -349,18 +364,18 @@ export async function deleteCvAction(
     return { success: false, error: "Inte inloggad." };
   }
 
-  const { error } = await supabase
-    .from("cv_profiles")
-    .delete()
-    .eq("id", cvId)
-    .eq("profile_id", user.id);
+  const outcome = await deleteCvForUser(supabase, user.id, cvId);
 
-  if (error) {
-    console.error("Error deleting CV:", error);
-    return { success: false, error: error.message };
+  if (!outcome.deleted) {
+    console.error("Error deleting CV:", outcome.error);
+    return { success: false, error: outcome.error };
   }
 
-  revalidatePath("/profile");
-  revalidatePath("/matches");
+  if (outcome.error) {
+    // Deletion succeeded but active-CV promotion failed — log and continue.
+    console.error("CV deleted with follow-up error:", outcome.error);
+  }
+
+  revalidateCvPages();
   return { success: true };
 }
