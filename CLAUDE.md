@@ -143,6 +143,7 @@ nordic-jobmatch-ai/
 │       │   ├── norway-harvester.ts    # NAV stilling-feed (official; cursor in harvest_state, public-token fallback)
 │       │   ├── jobindex-harvester.ts  # Jobindex.dk RSS (Danish job board)
 │       │   ├── duunitori-harvester.ts # Duunitori.fi JSON API (Finnish job board)
+│       │   ├── jooble-harvester.ts    # Jooble partner API — all 4 Nordic countries (requires JOOBLE_API_KEY)
 │       │   └── facebook-harvester.ts  # Facebook group posts (requires FACEBOOK_ACCESS_TOKEN; Groups API restricted)
 │       │
 │       └── ai/
@@ -250,7 +251,7 @@ FormData (PDF) → validateFile() → verifyAuth() → ArrayBuffer → Buffer
 - **`raw_text` column** — Stores Gemini's raw JSON response (not the original PDF text).
 - **PDF size limit** — 4MB max, 100 bytes min. Enforced in both `cv-actions.ts` and `parser.ts`.
 - **`database.types.ts`** — Generated file. When reading `structured_data`, cast it to `CvStructuredData` after Zod validation.
-- **Env vars** — Required: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `CRON_SECRET`, `NEXT_PUBLIC_SITE_URL` (production). Optional: `RESEND_API_KEY` (email), `NEXT_PUBLIC_VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` (push), `FACEBOOK_ACCESS_TOKEN` + `FACEBOOK_GROUP_IDS` (FB harvester), `GEMINI_EMBEDDING_MODEL` (override), `ALLOW_MOCK_FALLBACKS` (dev only). See `.env.local.example`.
+- **Env vars** — Required: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `CRON_SECRET`, `NEXT_PUBLIC_SITE_URL` (production). Optional: `RESEND_API_KEY` (email), `NEXT_PUBLIC_VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` (push), `JOOBLE_API_KEY` (Jooble harvester — skipped with a warning when unset), `FACEBOOK_ACCESS_TOKEN` + `FACEBOOK_GROUP_IDS` (FB harvester), `GEMINI_EMBEDDING_MODEL` (override), `ALLOW_MOCK_FALLBACKS` (dev only). See `.env.local.example`.
 - **Next.js 16 proxy deprecation** — `src/proxy.ts` has replaced `src/middleware.ts` to adhere to Next.js 16 conventions. It must export a default function or a named function `proxy`.
 - **revalidatePath with localized routes** — pages live under `/[locale]/(dashboard)/…`, so `revalidatePath("/profile")` matches nothing. Always use the route file path form: `revalidatePath("/[locale]/(dashboard)/profile", "page")`. A wrong path fails silently (stale UI, "the action didn't work").
 - **Batch embedding limit** — Gemini allows max 100 texts per `batchEmbedContents` call.
@@ -262,4 +263,5 @@ FormData (PDF) → validateFile() → verifyAuth() → ArrayBuffer → Buffer
 - **Harvester mock fallbacks** — mock fallbacks only activate when ALLOW_MOCK_FALLBACKS=true. Never set this flag in production.
 - **Harvester sources (audited 2026-06-10)** — Sweden (JobTech) and Norway (NAV stilling-feed) are official APIs and need no credentials (NAV falls back to its rotating public token if NAV_FEED_TOKEN is unset). Jobindex.dk RSS works but is served as ISO-8859-1 (the harvester decodes from the XML prolog). Duunitori's RSS was removed — its JSON API (/api/v1/jobentries) is used instead. Indeed (Cloudflare-blocked, no API), Blocket Jobb (domain shut down), and FINN.no (no JobPosting JSON-LD, partner-only API) harvesters were removed.
 - **NAV feed cursor** — the stilling-feed is append-only: the harvester persists the last processed page id in `harvest_state` and walks forward each run. Without migration 00010 applied it degrades to reading only the newest feed page (low yield).
-- **Cron harvest defaults** — /api/cron/harvest runs daily (vercel.json, 9:00 UTC) with publishedAfter=1500 min and platforms sweden,norway,jobindex,duunitori. extractUnstructuredData makes one Gemini call per jobindex/duunitori ad; on free-tier quota exhaustion ads are still stored, just without hard_requirements.
+- **Cron harvest defaults** — /api/cron/harvest runs daily (vercel.json, 9:00 UTC) with publishedAfter=1500 min and platforms sweden,norway,jobindex,duunitori,jooble. extractUnstructuredData makes one Gemini call per jobindex/duunitori/jooble ad; on free-tier quota exhaustion ads are still stored, just without hard_requirements.
+- **Jooble harvester** — our key is scoped to the main jooble.org endpoint; country subdomains (se.jooble.org etc.) return 403 for it. The harvester filters by `location: "<Country>"` instead — exactly one request per Nordic country per run (4 total, key budget ~500 requests). International inventory quality is mixed (occasional mislocated ads). source_url is built from the stable job id (`/desc/{id}`) because Jooble's `link` carries volatile tracking params that would defeat upsert dedup.

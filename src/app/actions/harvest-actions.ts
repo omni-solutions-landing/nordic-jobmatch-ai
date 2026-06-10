@@ -5,6 +5,7 @@ import { harvestNorwegianJobs } from "@/lib/harvesters/norway-harvester";
 import { harvestJobindexJobs } from "@/lib/harvesters/jobindex-harvester";
 import { harvestDuunitoriJobs } from "@/lib/harvesters/duunitori-harvester";
 import { harvestFacebookJobs } from "@/lib/harvesters/facebook-harvester";
+import { harvestJoobleJobs } from "@/lib/harvesters/jooble-harvester";
 import { revalidatePath } from "next/cache";
 import { translateKeyword } from "@/lib/ai/translation";
 
@@ -20,6 +21,7 @@ export interface HarvestActionResponse {
     jobindex?: { fetched: number; mapped: number; stored: number; skipped: number };
     duunitori?: { fetched: number; mapped: number; stored: number; skipped: number };
     facebook?: { fetched: number; mapped: number; stored: number; skipped: number };
+    jooble?: { fetched: number; mapped: number; stored: number; skipped: number };
   };
   error?: string;
 }
@@ -102,6 +104,16 @@ export async function triggerHarvestAction(formData: {
       }
     })(),
 
+
+    // Jooble partner API - one request per Nordic country (SE/NO/DK/FI)
+    (async () => {
+      try {
+        const res = await harvestJoobleJobs(formData.limit, publishedAfterMinutes, rawKeyword || undefined);
+        results.jooble = { fetched: res.fetched, mapped: res.mapped, stored: res.stored, skipped: res.skipped };
+      } catch (err) {
+        errors.push(`Jooble: ${errorMessage(err)}`);
+      }
+    })(),
   ];
 
   await Promise.all(runs);

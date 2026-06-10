@@ -197,6 +197,9 @@ export function DeepHarvestPanel() {
                   {result.results?.duunitori && (
                     <p>🇫🇮 Finland (Duunitori): Hämtade {result.results.duunitori.fetched} annonser, sparade {result.results.duunitori.stored} st.</p>
                   )}
+                  {result.results?.jooble && (
+                    <p>🌍 Norden (Jooble): Hämtade {result.results.jooble.fetched} annonser, sparade {result.results.jooble.stored} st.</p>
+                  )}
                   {result.results?.facebook && (
                     <p>👥 Sociala medier (Facebook): Hämtade {result.results.facebook.fetched} poster, sparade {result.results.facebook.stored} st.</p>
                   )}

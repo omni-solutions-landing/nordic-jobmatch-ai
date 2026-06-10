@@ -33,12 +33,14 @@ async function main(): Promise<void> {
   const { harvestNorwegianJobs } = await import("@/lib/harvesters/norway-harvester");
   const { harvestJobindexJobs } = await import("@/lib/harvesters/jobindex-harvester");
   const { harvestDuunitoriJobs } = await import("@/lib/harvesters/duunitori-harvester");
+  const { harvestJoobleJobs } = await import("@/lib/harvesters/jooble-harvester");
 
   const sources = [
     ["sweden", () => harvestSwedishJobs(limit, lookback)],
     ["norway", () => harvestNorwegianJobs(Math.min(limit, 10))],
     ["jobindex", () => harvestJobindexJobs(Math.min(limit, 8), lookback)],
     ["duunitori", () => harvestDuunitoriJobs(Math.min(limit, 8), lookback)],
+    ["jooble", () => harvestJoobleJobs(limit, lookback)],
   ] as const;
 
   for (const [name, run] of sources) {

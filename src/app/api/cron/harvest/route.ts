@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
   const platformsParam = searchParams.get("platforms");
   const platforms = platformsParam
     ? platformsParam.split(",").map((p) => p.trim().toLowerCase())
-    : ["sweden", "norway", "jobindex", "duunitori"]; // all stable feeds for standard cron
+    : ["sweden", "norway", "jobindex", "duunitori", "jooble"]; // all stable feeds for standard cron
 
   const results: Record<string, unknown> = {};
   const errors: string[] = [];
@@ -116,6 +116,21 @@ export async function GET(request: NextRequest) {
         results.facebook = res;
       } catch (error) {
         const msg = `Facebook harvest failed: ${error instanceof Error ? error.message : String(error)}`;
+        console.error(msg);
+        errors.push(msg);
+      }
+    })());
+  }
+
+  // Jooble partner API (all four Nordic countries, one request each)
+  if (platforms.includes("jooble")) {
+    tasks.push((async () => {
+      try {
+        const { harvestJoobleJobs } = await import("@/lib/harvesters/jooble-harvester");
+        const res = await harvestJoobleJobs(limit, publishedAfter, q);
+        results.jooble = res;
+      } catch (error) {
+        const msg = `Jooble harvest failed: ${error instanceof Error ? error.message : String(error)}`;
         console.error(msg);
         errors.push(msg);
       }
