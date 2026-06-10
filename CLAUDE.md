@@ -99,6 +99,7 @@ nordic-jobmatch-ai/
 │   │       │
 │   │       └── (dashboard)/           # Localized dashboard routes
 │   │           ├── matches/           # Job matching board with search filters & country flags
+│   │           ├── search/            # Free-text job search (no CV required) — semantic + keyword hybrid
 │   │           ├── profile/           # Profile page with CvManager list and DangerZone delete
 │   │           └── upload/
 │   │
@@ -233,6 +234,8 @@ FormData (PDF) → validateFile() → verifyAuth() → ArrayBuffer → Buffer
 | `src/proxy.ts` | Handles cookies session sync with Supabase and translations fallback next-intl routing. |
 | `src/app/actions/cv-actions.ts` | `uploadAndProcessCv` Server Action — processes and uploads candidate CVs using monad flows. |
 | `src/app/actions/match-actions.ts` | `getMatchesForUser` Server Action — matches job postings against active CV with keyword translations & country filters. |
+| `src/app/actions/search-actions.ts` | `searchJobs` Server Action — free-text job search without a CV. Empty query browses newest postings; with a query it embeds the text (taskType "query") and reuses the `match_jobs_with_keywords` RPC (keywords expanded to all Nordic languages, semantic-only retry when the keyword filter yields 0). |
+| `src/lib/search/keywords.ts` | `expandKeywordsWithTranslations()` — pure, translator-injected keyword expansion (unit-tested). |
 | `src/lib/matching/prerequisites.ts` | Pure matching logic: `checkMissingPrerequisites()` (skills/certs/license-class/education/language checks) and `adjustMatchScore()` (regulated-title and missing-prereq penalties). Extracted from match-actions for testability — "use server" files can only export async functions. |
 | `src/lib/matching/explanations.ts` | `generateMatchExplanationsBatch()` — explains ALL matches in one Gemini call (the CV is shared context; per-match calls were an N+1). Falls back to `generateDeterministicExplanation()` per match on any failure. |
 | `scripts/verify-embeddings.ts` | One-off: checks stored embeddings match the current embedding model (L2 norm + re-embed self-similarity). Run with `npx tsx`. |
