@@ -38,11 +38,14 @@ export const config = {
   matcher: [
     /*
      * Match all routes except:
+     * - api (API routes — the i18n middleware would rewrite them into
+     *   locale paths that don't exist, returning 404. This silently broke
+     *   the Vercel cron's calls to /api/cron/harvest.)
      * - _next/static (static files)
      * - _next/image (image optimization)
      * - favicon.ico, sitemap.xml, robots.txt (metadata files)
      * - Public assets
      */
-    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
