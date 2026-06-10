@@ -16,6 +16,12 @@ const PLATFORM_NAME = "finn";
 // ─── Fetch Helpers ───────────────────────────────────────────────────────────
 
 function getFallbackMockAds(q = "sjåfør", limit: number): any[] {
+  // Mock listings are for local development only. In production a failed
+  // fetch must return nothing — never fabricated jobs with dead links.
+  if (process.env.ALLOW_MOCK_FALLBACKS !== "true") {
+    return [];
+  }
+
   const isChauffor =
     q.toLowerCase().includes("sjåfør") ||
     q.toLowerCase().includes("chauff") ||
@@ -132,7 +138,7 @@ export async function fetchFinnJobsRaw(
 
     if (ads.length === 0) {
       console.warn(
-        "[FinnHarvester] No listings scraped from HTML. Returning fallback Norwegian driver listings.",
+        "[FinnHarvester] No listings scraped from HTML. Falling back (mocks only if ALLOW_MOCK_FALLBACKS=true).",
       );
       return getFallbackMockAds(q, limit);
     }
@@ -140,7 +146,7 @@ export async function fetchFinnJobsRaw(
     return ads.slice(0, limit);
   } catch (err) {
     console.warn(
-      "[FinnHarvester] Scraper fetch error, returning mock ads:",
+      "[FinnHarvester] Scraper fetch error. Falling back (mocks only if ALLOW_MOCK_FALLBACKS=true):",
       err,
     );
     return getFallbackMockAds(q, limit);

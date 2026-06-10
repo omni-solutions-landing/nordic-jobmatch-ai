@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerClient } from "@/lib/supabase/server";
+import type { Json } from "@/lib/database.types";
 import { Result, ok, fail } from "@/lib/fp/result";
 import { revalidatePath } from "next/cache";
 
@@ -16,7 +17,8 @@ export async function updateNotificationPreferences(
       return fail(new Error("Unauthorized"));
     }
 
-    const { error } = await (supabase.from("profiles") as any)
+    const { error } = await supabase
+      .from("profiles")
       .update({
         email_notifications_enabled: emailNotificationsEnabled,
         push_notifications_enabled: pushNotificationsEnabled,
@@ -29,13 +31,13 @@ export async function updateNotificationPreferences(
 
     revalidatePath("/profile");
     return ok({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return fail(error instanceof Error ? error : new Error(String(error)));
   }
 }
 
 export async function savePushSubscription(
-  subscription: any
+  subscription: Json | null
 ): Promise<Result<{ success: boolean }, Error>> {
   try {
     const supabase = await createServerClient();
@@ -45,7 +47,8 @@ export async function savePushSubscription(
       return fail(new Error("Unauthorized"));
     }
 
-    const { error } = await (supabase.from("profiles") as any)
+    const { error } = await supabase
+      .from("profiles")
       .update({
         push_subscription: subscription,
         push_notifications_enabled: subscription !== null,
@@ -58,7 +61,7 @@ export async function savePushSubscription(
 
     revalidatePath("/profile");
     return ok({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return fail(error instanceof Error ? error : new Error(String(error)));
   }
 }

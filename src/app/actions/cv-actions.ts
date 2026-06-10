@@ -243,18 +243,16 @@ export async function uploadAndProcessCv(
   // 6. Store in Supabase
   const storeStart = performance.now();
   const supabase = await createServerClient();
-  const rpcArgs = {
-    p_profile_id: brandedProfileId,
-    p_filename: fileName,
-    p_raw_text: parseResult.rawJson,
-    p_structured_data: JSON.parse(JSON.stringify(parseResult.data)) as Json,
-    p_skills_embedding: vectorToString(embedding),
-  };
 
   const { data: cvProfileId, error: rpcError } = await supabase.rpc(
     "create_cv_profile",
-    // @ts-expect-error create_cv_profile type fallback
-    rpcArgs,
+    {
+      p_profile_id: brandedProfileId,
+      p_filename: fileName,
+      p_raw_text: parseResult.rawJson,
+      p_structured_data: JSON.parse(JSON.stringify(parseResult.data)) as Json,
+      p_skills_embedding: vectorToString(embedding),
+    },
   );
   const storeMs = Math.round(performance.now() - storeStart);
 
@@ -320,7 +318,8 @@ export async function activateCvAction(
     return { success: false, error: "Inte inloggad." };
   }
 
-  const { error } = await (supabase.from("cv_profiles") as any)
+  const { error } = await supabase
+    .from("cv_profiles")
     .update({ is_active: true })
     .eq("id", cvId)
     .eq("profile_id", user.id);
@@ -350,7 +349,8 @@ export async function deleteCvAction(
     return { success: false, error: "Inte inloggad." };
   }
 
-  const { error } = await (supabase.from("cv_profiles") as any)
+  const { error } = await supabase
+    .from("cv_profiles")
     .delete()
     .eq("id", cvId)
     .eq("profile_id", user.id);

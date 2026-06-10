@@ -98,7 +98,7 @@ export function NotificationSettings({
         });
 
         // Save subscription
-        const result = await savePushSubscription(subscription.toJSON());
+        const result = await savePushSubscription(subscription.toJSON() as any);
         if (result.success) {
           setPushEnabled(true);
           setSuccessMsg("Push-notiser har aktiverats.");

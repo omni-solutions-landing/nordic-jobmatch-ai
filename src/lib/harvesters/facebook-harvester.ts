@@ -16,6 +16,12 @@ const PLATFORM_NAME = "facebook";
 // ─── Fetch Helpers ───────────────────────────────────────────────────────────
 
 function getFallbackMockPosts(q = "chaufför", limit: number): any[] {
+  // Mock listings are for local development only. In production a failed
+  // fetch must return nothing — never fabricated jobs with dead links.
+  if (process.env.ALLOW_MOCK_FALLBACKS !== "true") {
+    return [];
+  }
+
   const isChauffor =
     q.toLowerCase().includes("chauff") ||
     q.toLowerCase().includes("ce") ||

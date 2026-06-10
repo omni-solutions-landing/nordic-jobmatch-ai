@@ -22,7 +22,7 @@ export async function deleteUserAccountAction(profileId: string): Promise<Delete
     return { success: false, error: "Du har inte behörighet att radera det här kontot." };
   }
 
-  const { data, error } = await (supabase.rpc as any)("delete_user_data", {
+  const { data, error } = await supabase.rpc("delete_user_data", {
     target_profile_id: profileId,
   });
 

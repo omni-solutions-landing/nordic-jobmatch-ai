@@ -16,6 +16,12 @@ const PLATFORM_NAME = "duunitori";
 // ─── Fetch Helper ────────────────────────────────────────────────────────────
 
 function getFallbackMockAds(q = "chaufför", limit: number): any[] {
+  // Mock listings are for local development only. In production a failed
+  // fetch must return nothing — never fabricated jobs with dead links.
+  if (process.env.ALLOW_MOCK_FALLBACKS !== "true") {
+    return [];
+  }
+
   const isChauffor =
     q.toLowerCase().includes("chauff") ||
     q.toLowerCase().includes("ce") ||
@@ -113,7 +119,7 @@ export async function fetchDuunitoriJobsRaw(
 
     if (items.length === 0) {
       console.warn(
-        "[DuunitoriHarvester] RSS feed empty or blocked. Generating fallback Finnish listings.",
+        "[DuunitoriHarvester] RSS feed empty or blocked. Falling back (mocks only if ALLOW_MOCK_FALLBACKS=true).",
       );
       return getFallbackMockAds(q, limit);
     }
@@ -121,7 +127,7 @@ export async function fetchDuunitoriJobsRaw(
     return items;
   } catch (err) {
     console.warn(
-      "[DuunitoriHarvester] Fetch error, falling back to mock ads:",
+      "[DuunitoriHarvester] Fetch error. Falling back (mocks only if ALLOW_MOCK_FALLBACKS=true):",
       err,
     );
     return getFallbackMockAds(q, limit);

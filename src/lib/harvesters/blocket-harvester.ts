@@ -16,6 +16,12 @@ const PLATFORM_NAME = "blocket";
 // ─── Fetch Helpers ───────────────────────────────────────────────────────────
 
 function getFallbackMockAds(q = "chaufför", limit: number): any[] {
+  // Mock listings are for local development only. In production a failed
+  // fetch must return nothing — never fabricated jobs with dead links.
+  if (process.env.ALLOW_MOCK_FALLBACKS !== "true") {
+    return [];
+  }
+
   const isChauffor =
     q.toLowerCase().includes("chauff") ||
     q.toLowerCase().includes("ce") ||
@@ -108,7 +114,7 @@ export async function fetchBlocketJobsRaw(
 
     if (ads.length === 0) {
       console.warn(
-        "[BlocketHarvester] No listings found in NEXT_DATA. Returning fallback mock scraped listings.",
+        "[BlocketHarvester] No listings found in NEXT_DATA. Falling back (mocks only if ALLOW_MOCK_FALLBACKS=true).",
       );
       return getFallbackMockAds(q, limit);
     }
@@ -116,7 +122,7 @@ export async function fetchBlocketJobsRaw(
     return ads;
   } catch (err) {
     console.warn(
-      "[BlocketHarvester] Scraper fetch error, returning mock ads:",
+      "[BlocketHarvester] Scraper fetch error. Falling back (mocks only if ALLOW_MOCK_FALLBACKS=true):",
       err,
     );
     return getFallbackMockAds(q, limit);

@@ -16,6 +16,12 @@ const PLATFORM_NAME = "jobindex";
 // ─── Fetch Helper ────────────────────────────────────────────────────────────
 
 function getFallbackMockAds(q = "chauffør", limit: number): any[] {
+  // Mock listings are for local development only. In production a failed
+  // fetch must return nothing — never fabricated jobs with dead links.
+  if (process.env.ALLOW_MOCK_FALLBACKS !== "true") {
+    return [];
+  }
+
   const isChauffor =
     q.toLowerCase().includes("chauff") ||
     q.toLowerCase().includes("ce") ||
@@ -112,7 +118,7 @@ export async function fetchJobindexJobsRaw(
 
     if (items.length === 0) {
       console.warn(
-        "[JobindexHarvester] RSS feed empty or blocked. Generating fallback Danish listings.",
+        "[JobindexHarvester] RSS feed empty or blocked. Falling back (mocks only if ALLOW_MOCK_FALLBACKS=true).",
       );
       return getFallbackMockAds(q, limit);
     }
@@ -120,7 +126,7 @@ export async function fetchJobindexJobsRaw(
     return items;
   } catch (err) {
     console.warn(
-      "[JobindexHarvester] Fetch error, falling back to mock ads:",
+      "[JobindexHarvester] Fetch error. Falling back (mocks only if ALLOW_MOCK_FALLBACKS=true):",
       err,
     );
     return getFallbackMockAds(q, limit);

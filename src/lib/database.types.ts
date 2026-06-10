@@ -1,12 +1,3 @@
-/**
- * Auto-generated Supabase TypeScript types.
- *
- * Regenerate with:
- *   npx supabase gen types typescript --project-id nwepwncpxcudfypgcyjr > src/lib/database.types.ts
- *
- * DO NOT EDIT MANUALLY.
- */
-
 export type Json =
   | string
   | number
@@ -16,6 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
@@ -23,40 +16,40 @@ export type Database = {
     Tables: {
       cv_profiles: {
         Row: {
+          filename: string
           id: string
+          is_active: boolean
           profile_id: string
           raw_text: string
           skills_embedding: string | null
           structured_data: Json
           updated_at: string
-          filename: string
-          is_active: boolean
         }
         Insert: {
+          filename?: string
           id?: string
+          is_active?: boolean
           profile_id: string
           raw_text?: string
           skills_embedding?: string | null
           structured_data?: Json
           updated_at?: string
-          filename?: string
-          is_active?: boolean
         }
         Update: {
+          filename?: string
           id?: string
+          is_active?: boolean
           profile_id?: string
           raw_text?: string
           skills_embedding?: string | null
           structured_data?: Json
           updated_at?: string
-          filename?: string
-          is_active?: boolean
         }
         Relationships: [
           {
             foreignKeyName: "cv_profiles_profile_id_fkey"
             columns: ["profile_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -163,46 +156,79 @@ export type Database = {
           country_code: Database["public"]["Enums"]["nordic_country"]
           current_status: Database["public"]["Enums"]["profile_status"]
           email: string
+          email_notifications_enabled: boolean
           full_name: string
           id: string
-          updated_at: string
-          email_notifications_enabled: boolean
           push_notifications_enabled: boolean
           push_subscription: Json | null
+          updated_at: string
         }
         Insert: {
           country_code?: Database["public"]["Enums"]["nordic_country"]
           current_status?: Database["public"]["Enums"]["profile_status"]
           email: string
+          email_notifications_enabled?: boolean
           full_name?: string
           id: string
-          updated_at?: string
-          email_notifications_enabled?: boolean
           push_notifications_enabled?: boolean
           push_subscription?: Json | null
+          updated_at?: string
         }
         Update: {
           country_code?: Database["public"]["Enums"]["nordic_country"]
           current_status?: Database["public"]["Enums"]["profile_status"]
           email?: string
+          email_notifications_enabled?: boolean
           full_name?: string
           id?: string
-          updated_at?: string
-          email_notifications_enabled?: boolean
           push_notifications_enabled?: boolean
           push_subscription?: Json | null
+          updated_at?: string
         }
         Relationships: []
       }
     }
     Views: {
-      [_ in never]: never
+      [key: string]: never
     }
     Functions: {
+      create_cv_profile: {
+        Args: {
+          p_filename: string
+          p_profile_id: string
+          p_raw_text: string
+          p_skills_embedding: string
+          p_structured_data: Json
+        }
+        Returns: string
+      }
+      delete_user_data: { Args: { target_profile_id: string }; Returns: Json }
+      make_cv_active: {
+        Args: { p_cv_profile_id: string; p_profile_id: string }
+        Returns: undefined
+      }
       match_jobs: {
         Args: {
           filter_country?: Database["public"]["Enums"]["nordic_country"]
           match_count?: number
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          company: string
+          country: Database["public"]["Enums"]["nordic_country"]
+          id: string
+          location: string
+          similarity: number
+          source_url: string
+          title: string
+        }[]
+      }
+      match_jobs_with_keywords: {
+        Args: {
+          filter_country?: Database["public"]["Enums"]["nordic_country"]
+          match_count?: number
+          match_keywords: string[]
           match_threshold?: number
           query_embedding: string
         }
@@ -243,14 +269,14 @@ export type Database = {
       source_language: "sv" | "no" | "da" | "fi" | "en"
     }
     CompositeTypes: {
-      [_ in never]: never
+      [key: string]: never
     }
   }
 }
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+type DefaultSchema = Database["public"]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends

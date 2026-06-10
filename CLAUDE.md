@@ -28,7 +28,7 @@ Nordic JobMatch AI is a cross-border job-matching web application serving the No
 | Database | Supabase (PostgreSQL + pgvector) | eu-north-1 |
 | Auth | Supabase Auth via @supabase/ssr | 0.6.1 |
 | AI — Parsing/Chat | Gemini API (@google/generative-ai) | 0.24.0 |
-| AI — Embeddings | Gemini gemini-embedding-2 (768-d) | — |
+| AI — Embeddings | Gemini gemini-embedding-001 (768-d via outputDimensionality) | — |
 | Validation | Zod + zod-to-json-schema | 3.24.4 |
 | Deployment | Vercel | Configured (framework: `nextjs` in `vercel.json`) |
 | Package manager | npm | 11.6.2 |
@@ -62,6 +62,7 @@ nordic-jobmatch-ai/
 │       ├── 00004_multi_cv_support.sql # Multi-CV table schema, trigger and create_cv_profile RPC
 │       ├── 00005_delete_user_data_rpc.sql # GDPR cascading data deletion RPC
 │       ├── 00006_fix_match_jobs_search_path.sql # Fix match_jobs search path for pgvector operators
+│       ├── 00007_match_jobs_with_keywords.sql # Keyword-filtered semantic job matching RPC
 │       ├── 00008_add_job_posting_source_platform.sql # Added source_platform column to job_postings
 │       └── 00009_add_notification_settings.sql # Add notification settings and push subscription to profiles
 │
@@ -228,9 +229,11 @@ FormData (PDF) → validateFile() → verifyAuth() → ArrayBuffer → Buffer
 - **`raw_text` column** — Stores Gemini's raw JSON response (not the original PDF text).
 - **PDF size limit** — 4MB max, 100 bytes min. Enforced in both `cv-actions.ts` and `parser.ts`.
 - **`database.types.ts`** — Generated file. When reading `structured_data`, cast it to `CvStructuredData` after Zod validation.
-- **Env vars** — Four required keys in `.env.local`: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`.
+- **Env vars** — Required: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `CRON_SECRET`, `NEXT_PUBLIC_SITE_URL` (production). Optional: `RESEND_API_KEY` (email), `NEXT_PUBLIC_VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` (push), `FACEBOOK_ACCESS_TOKEN` + `FACEBOOK_GROUP_IDS` (FB harvester), `GEMINI_EMBEDDING_MODEL` (override), `ALLOW_MOCK_FALLBACKS` (dev only). See `.env.local.example`.
 - **Next.js 16 proxy deprecation** — `src/proxy.ts` has replaced `src/middleware.ts` to adhere to Next.js 16 conventions. It must export a default function or a named function `proxy`.
 - **Batch embedding limit** — Gemini allows max 100 texts per `batchEmbedContents` call.
 - **`source_url` UNIQUE** on `job_postings` — This is the deduplication key for all harvesters.
 - **Multi-CV support** — The database trigger automatically manages active/inactive flags.
 - **Vercel Hobby plan limitations** — `vercel.json` has been simplified to `{ "framework": "nextjs" }`. Regional routing configurations (`regions: ["arn1"]`) are omitted.
+- **Embedding model** — model is gemini-embedding-001 (text-embedding-004 was retired by Google 2026-01-14). 768-d is requested via outputDimensionality. Changing the model invalidates ALL stored embeddings — both cv_profiles.skills_embedding and job_postings.job_embedding must be regenerated.
+- **Harvester mock fallbacks** — mock fallbacks only activate when ALLOW_MOCK_FALLBACKS=true. Never set this flag in production.

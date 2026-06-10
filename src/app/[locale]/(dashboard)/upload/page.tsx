@@ -13,12 +13,16 @@ export default async function UploadPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Check if user already has a CV profile
-  const { data: cvProfile } = (await supabase
+  // Multi-CV support: a user can have several CVs, but at most one is active
+  // (enforced by the set_active_cv_profile trigger). Query the active one only —
+  // using maybeSingle() without the is_active filter would throw as soon as a
+  // user has more than one CV.
+  const { data: cvProfile } = await supabase
     .from("cv_profiles")
-    .select("profile_id, structured_data, updated_at")
+    .select("structured_data, updated_at")
     .eq("profile_id", user!.id)
-    .maybeSingle()) as any;
+    .eq("is_active", true)
+    .maybeSingle();
 
   const hasExistingCv = !!cvProfile?.structured_data;
   const lastUpdated = cvProfile?.updated_at

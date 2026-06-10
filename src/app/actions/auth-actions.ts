@@ -47,14 +47,15 @@ export async function registerAction(formData: FormData): Promise<AuthResult> {
   }
 
   if (data.user) {
-    // Create profile record
-    const { error: profileError } = (await supabase.from("profiles").insert({
+    // Create profile record (the on_auth_user_created trigger also does this;
+    // ON CONFLICT in the trigger makes the duplicate attempt harmless)
+    const { error: profileError } = await supabase.from("profiles").insert({
       id: data.user.id,
       email: data.user.email ?? email,
       full_name: fullName,
       country_code: "SE",
       current_status: "actively_looking",
-    } as any)) as any;
+    });
 
     if (profileError) {
       console.error("Profile creation error:", profileError);
@@ -107,13 +108,13 @@ export async function demoLoginAction(): Promise<AuthResult> {
       }
 
       if (data.user) {
-        const { error: profileError } = (await supabase.from("profiles").insert({
+        const { error: profileError } = await supabase.from("profiles").insert({
           id: data.user.id,
           email,
           full_name: "Nordisk Testare",
           country_code: "SE",
           current_status: "actively_looking",
-        } as any)) as any;
+        });
 
         if (profileError) console.error("Demo profile creation error:", profileError);
 

@@ -17,21 +17,23 @@ export default async function ProfilePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Fetch profile and all CV profiles
-  const { data: profile } = (await supabase
+  // Fetch profile and all CV profiles (fully typed via database.types.ts)
+  const { data: profile } = await supabase
     .from("profiles")
     .select("full_name, email, country_code, current_status, email_notifications_enabled, push_notifications_enabled")
     .eq("id", user!.id)
-    .maybeSingle()) as any;
+    .maybeSingle();
 
-  const { data: cvProfiles } = (await supabase
+  const { data: cvProfiles } = await supabase
     .from("cv_profiles")
     .select("id, filename, is_active, updated_at, structured_data")
     .eq("profile_id", user!.id)
-    .order("updated_at", { ascending: false })) as any;
+    .order("updated_at", { ascending: false });
 
-  const activeCv = cvProfiles?.find((cv: any) => cv.is_active) || null;
-  const cvData = activeCv?.structured_data as CvStructuredData | null;
+  const activeCv = cvProfiles?.find((cv) => cv.is_active) ?? null;
+  // structured_data is JSONB — cast after the parser's Zod validation guarantees the shape
+  // (see CLAUDE.md gotcha on database.types.ts)
+  const cvData = (activeCv?.structured_data as CvStructuredData | undefined) ?? null;
 
   const lastUpdated = activeCv?.updated_at
     ? new Date(activeCv.updated_at).toLocaleDateString("sv-SE", {

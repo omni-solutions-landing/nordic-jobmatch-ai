@@ -16,6 +16,12 @@ const PLATFORM_NAME = "indeed";
 // ─── Fetch Helper ────────────────────────────────────────────────────────────
 
 function getFallbackMockAds(q = "chaufför", limit: number): any[] {
+  // Mock listings are for local development only. In production a failed
+  // fetch must return nothing — never fabricated jobs with dead links.
+  if (process.env.ALLOW_MOCK_FALLBACKS !== "true") {
+    return [];
+  }
+
   const isChauffor =
     q.toLowerCase().includes("chauff") ||
     q.toLowerCase().includes("ce") ||
@@ -114,7 +120,7 @@ export async function fetchIndeedJobsRaw(
 
     if (items.length === 0) {
       console.warn(
-        "[IndeedHarvester] RSS feed empty or blocked. Generating realistic fallback listings.",
+        "[IndeedHarvester] RSS feed empty or blocked. Falling back (mocks only if ALLOW_MOCK_FALLBACKS=true).",
       );
       return getFallbackMockAds(q, limit);
     }
@@ -122,7 +128,7 @@ export async function fetchIndeedJobsRaw(
     return items;
   } catch (err) {
     console.warn(
-      "[IndeedHarvester] Fetch error, falling back to mock ads:",
+      "[IndeedHarvester] Fetch error. Falling back (mocks only if ALLOW_MOCK_FALLBACKS=true):",
       err,
     );
     return getFallbackMockAds(q, limit);

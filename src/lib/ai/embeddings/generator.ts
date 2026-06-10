@@ -1,7 +1,18 @@
 /**
- * Embedding Generator — Gemini text-embedding-004
+ * Embedding Generator — Gemini gemini-embedding-001
  *
  * Generates 768-dimensional vector embeddings for semantic search and matching.
+ *
+ * MODEL NOTE (2026-06): Google retired text-embedding-004 on 2026-01-14.
+ * The stable replacement is gemini-embedding-001, which outputs 3072 dimensions
+ * by default but supports Matryoshka truncation via `outputDimensionality`.
+ * We request 768 to stay compatible with the VECTOR(768) columns in Supabase.
+ * Cosine similarity (used by the match_jobs RPCs) is scale-invariant, so the
+ * truncated vectors work without manual re-normalization.
+ *
+ * ⚠️  If you ever change the embedding model, all stored embeddings
+ * (cv_profiles.skills_embedding and job_postings.job_embedding) must be
+ * regenerated — vectors from different models are not comparable.
  *
  * Two embedding modes via TaskType:
  *   - RETRIEVAL_DOCUMENT: Used when indexing content (job postings, CVs being stored)
@@ -20,13 +31,15 @@ import {
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
-const EMBEDDING_MODEL = "gemini-embedding-2";
+/** Stable Gemini embedding model. Overridable via GEMINI_EMBEDDING_MODEL. */
+const EMBEDDING_MODEL =
+  process.env.GEMINI_EMBEDDING_MODEL ?? "gemini-embedding-001";
 const EMBEDDING_DIMENSIONS = 768;
 
 /** Gemini embedding API supports up to 100 texts per batch request. */
 const MAX_BATCH_SIZE = 100;
 
-/** Maximum input length per text (characters). text-embedding-004 handles ~2048 tokens. */
+/** Maximum input length per text (characters). gemini-embedding-001 handles ~2048 tokens. */
 const MAX_TEXT_LENGTH = 10_000;
 
 const DEFAULT_MAX_RETRIES = 3;
@@ -130,7 +143,7 @@ async function withRetry<T>(
  *
  * @param text - Input text to embed. Automatically truncated if too long.
  * @param options - API key, task type, and retry configuration.
- * @returns 768-dimensional number array (cosine-normalized by the API).
+ * @returns 768-dimensional number array.
  *
  * @example
  * ```ts

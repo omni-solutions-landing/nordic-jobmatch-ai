@@ -10,7 +10,7 @@
  */
 
 import { createServerClient as _createServerClient } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { Database } from "@/lib/database.types";
 
@@ -18,7 +18,7 @@ import type { Database } from "@/lib/database.types";
  * Server client that respects RLS via the user's auth cookie.
  * Use in Server Components, Server Actions, and Route Handlers.
  */
-export async function createServerClient() {
+export async function createServerClient(): Promise<SupabaseClient<Database>> {
   const cookieStore = await cookies();
 
   return _createServerClient<Database>(
@@ -53,7 +53,7 @@ export async function createServerClient() {
  *  - Admin operations
  *  - Background processing
  */
-export function createServiceClient() {
+export function createServiceClient(): SupabaseClient<Database> {
   return createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,

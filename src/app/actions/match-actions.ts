@@ -501,15 +501,12 @@ export async function getMatchesForUser(
     const brandedProfileId = profileId as ProfileId;
     const supabase = await createServerClient();
 
-    const { data: cvProfile, error: profileError } = (await supabase
+    const { data: cvProfile, error: profileError } = await supabase
       .from("cv_profiles")
       .select("skills_embedding, structured_data")
       .eq("profile_id", brandedProfileId)
       .eq("is_active", true)
-      .maybeSingle()) as unknown as {
-      data: { skills_embedding: string | null; structured_data: Json } | null;
-      error: any;
-    };
+      .maybeSingle();
 
     if (profileError) {
       console.error("Error fetching CV profile:", profileError);
@@ -575,7 +572,7 @@ export async function getMatchesForUser(
       }
     }
 
-    const rpcResponse = (await (supabase.rpc as any)(
+    const { data: rpcMatches, error: rpcError } = await supabase.rpc(
       "match_jobs_with_keywords",
       {
         query_embedding: cvProfile.skills_embedding,
@@ -584,21 +581,7 @@ export async function getMatchesForUser(
         match_count: matchCount,
         filter_country: filterCountry,
       },
-    )) as unknown as {
-      data: Array<{
-        id: string;
-        title: string;
-        company: string;
-        country: Database["public"]["Enums"]["nordic_country"];
-        location: string;
-        source_url: string;
-        similarity: number;
-      }> | null;
-      error: any;
-    };
-
-    const rpcMatches = rpcResponse.data;
-    const rpcError = rpcResponse.error;
+    );
 
     if (rpcError) {
       console.error("Supabase match_jobs RPC failed:", rpcError);
@@ -624,31 +607,12 @@ export async function getMatchesForUser(
     }
 
     const jobIds = finalMatches.map((m) => m.id);
-    const jobsResponse = (await supabase
+    const { data: jobs, error: jobsError } = await supabase
       .from("job_postings")
       .select(
         "id, title, company, description, location, country, source_url, original_language, salary_info, hard_requirements, expires_at, created_at",
       )
-      .in("id", jobIds)) as unknown as {
-      data: Array<{
-        id: string;
-        title: string;
-        company: string;
-        description: string;
-        location: string;
-        country: Database["public"]["Enums"]["nordic_country"];
-        source_url: string;
-        original_language: Database["public"]["Enums"]["source_language"];
-        salary_info: Json;
-        hard_requirements: string[];
-        expires_at: string | null;
-        created_at: string;
-      }> | null;
-      error: any;
-    };
-
-    const jobs = jobsResponse.data;
-    const jobsError = jobsResponse.error;
+      .in("id", jobIds);
 
     if (jobsError) {
       console.error("Error fetching job postings details:", jobsError);
