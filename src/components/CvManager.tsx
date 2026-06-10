@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { activateCvAction, deleteCvAction } from "@/app/actions/cv-actions";
 
 interface CvInfo {
@@ -51,11 +52,61 @@ export function CvManager({ cvs }: CvManagerProps) {
     }
   };
 
+  const activeCv = cvs.find((cv) => cv.is_active) ?? null;
+
   return (
     <div className="space-y-4">
+      {/* Card header: title + delete-active-CV + add */}
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-bold text-white flex items-center gap-2">
+          <svg className="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 7v12m0 0l-4-4m4 4l4-4M16 17V5m0 0l-4 4m4-4l4 4" />
+          </svg>
+          Dina CV:n
+        </h2>
+        <div className="flex items-center gap-3 shrink-0">
+          {activeCv && (
+            <button
+              onClick={() => handleDelete(activeCv.id, activeCv.filename)}
+              disabled={loadingId !== null}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-aurora-orange bg-aurora-orange/10 hover:bg-aurora-orange/20 border border-aurora-orange/30 hover:border-aurora-orange/50 rounded-lg transition-all disabled:opacity-50"
+              title={`Radera "${activeCv.filename}"`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.5"
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                />
+              </svg>
+              {loadingId === activeCv.id ? "Raderar..." : "Radera"}
+            </button>
+          )}
+          <Link
+            href="/upload"
+            className="text-xs font-bold text-aurora-green hover:underline flex items-center gap-0.5"
+          >
+            + Lägg till
+          </Link>
+        </div>
+      </div>
+
       {error && (
         <div className="p-4 bg-aurora-orange/10 border border-aurora-orange/20 text-aurora-orange text-sm rounded-xl">
           {error}
+        </div>
+      )}
+
+      {cvs.length === 0 && (
+        <div className="text-center py-6 border border-dashed border-neutral-800 rounded-xl">
+          <p className="text-xs text-neutral-500 mb-3">Inget CV uppladdat än.</p>
+          <Link
+            href="/upload"
+            className="inline-flex px-3 py-1.5 bg-aurora-green text-neutral-950 text-xs font-bold rounded-lg hover:opacity-90 transition-all"
+          >
+            Ladda upp ditt första CV
+          </Link>
         </div>
       )}
 

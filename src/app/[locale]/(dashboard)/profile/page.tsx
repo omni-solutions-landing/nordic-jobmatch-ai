@@ -98,35 +98,10 @@ export default async function ProfilePage() {
             initialPushEnabled={profile?.push_notifications_enabled ?? false}
           />
 
-          {/* CV Manager card */}
+          {/* CV Manager card — header (incl. delete/add controls) lives in
+              CvManager since the delete button needs client-side state */}
           <section className="bg-surface-1 border border-neutral-800 rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <svg className="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 7v12m0 0l-4-4m4 4l4-4M16 17V5m0 0l-4 4m4-4l4 4" />
-                </svg>
-                Dina CV:n
-              </h2>
-              <Link
-                href="/upload"
-                className="text-xs font-bold text-aurora-green hover:underline flex items-center gap-0.5"
-              >
-                + Lägg till
-              </Link>
-            </div>
-            {cvProfiles && cvProfiles.length > 0 ? (
-              <CvManager cvs={cvProfiles} />
-            ) : (
-              <div className="text-center py-6 border border-dashed border-neutral-800 rounded-xl">
-                <p className="text-xs text-neutral-500 mb-3">Inget CV uppladdat än.</p>
-                <Link
-                  href="/upload"
-                  className="inline-flex px-3 py-1.5 bg-aurora-green text-neutral-950 text-xs font-bold rounded-lg hover:opacity-90 transition-all"
-                >
-                  Ladda upp ditt första CV
-                </Link>
-              </div>
-            )}
+            <CvManager cvs={cvProfiles ?? []} />
           </section>
 
           {/* GDPR Danger Zone */}
