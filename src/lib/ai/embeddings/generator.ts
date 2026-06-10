@@ -49,6 +49,14 @@ const BASE_DELAY_MS = 500;
 
 export type EmbeddingTaskType = "document" | "query" | "similarity";
 
+/**
+ * SDK 0.24 types lag the REST API: `outputDimensionality` is accepted by the
+ * endpoint (Matryoshka truncation) but missing from EmbedContentRequest.
+ */
+type EmbedContentRequestWithDims = EmbedContentRequest & {
+  outputDimensionality?: number;
+};
+
 export interface EmbeddingOptions {
   /** API key override (defaults to GEMINI_API_KEY env var) */
   apiKey?: string;
@@ -174,13 +182,15 @@ export async function generateEmbedding(
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({ model: EMBEDDING_MODEL });
 
+  const request: EmbedContentRequestWithDims = {
+    content: { parts: [{ text: processedText }], role: "user" },
+    taskType,
+    outputDimensionality: EMBEDDING_DIMENSIONS,
+  };
+
   const result = await withRetry(
     async () => {
-      const response = await model.embedContent({
-        content: { parts: [{ text: processedText }], role: "user" },
-        taskType,
-        outputDimensionality: EMBEDDING_DIMENSIONS,
-      } as any);
+      const response = await model.embedContent(request);
       return response.embedding.values;
     },
     maxRetries,
@@ -250,8 +260,8 @@ export async function generateEmbeddingsBatch(
   for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
     const chunk = chunks[chunkIndex]!;
 
-    const requests: any[] = chunk.map((text) => ({
-      content: { parts: [{ text }], role: "user" as const },
+    const requests: EmbedContentRequestWithDims[] = chunk.map((text) => ({
+      content: { parts: [{ text }], role: "user" },
       taskType,
       outputDimensionality: EMBEDDING_DIMENSIONS,
     }));

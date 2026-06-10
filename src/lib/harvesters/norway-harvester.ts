@@ -7,7 +7,7 @@
  */
 
 import type { TablesInsert } from "@/lib/database.types";
-import { Result, ok, fail } from "@/lib/fp/result";
+import { ok, fail } from "@/lib/fp/result";
 import {
   HarvesterDefinition,
   executeHarvestPipeline,
@@ -219,7 +219,6 @@ export async function fetchNorwegianJobsRaw(
   token: string,
 ): Promise<NavFeedAd[]> {
   const activeEntries: NavFeedLine[] = [];
-  let discovered = 0;
   let pagesTraversed = 0;
   let currentUrl: string | null = `${NAV_FEED_BASE_URL}/api/v1/feed?last`;
 
@@ -228,7 +227,6 @@ export async function fetchNorwegianJobsRaw(
     if (!page || page.items.length === 0) break;
 
     pagesTraversed++;
-    discovered += page.items.length;
 
     for (const item of page.items) {
       if (item._feed_entry.status === "ACTIVE" && activeEntries.length < limit) {
@@ -361,7 +359,7 @@ export const norwayHarvester: HarvesterDefinition<
       const token = await resolveToken();
       const ads = await fetchNorwegianJobsRaw(limit, token);
       return ok(ads);
-    } catch (error: any) {
+    } catch (error) {
       return fail(error instanceof Error ? error : new Error(String(error)));
     }
   },
@@ -371,7 +369,7 @@ export const norwayHarvester: HarvesterDefinition<
         return fail(new Error("Skipped ad: empty title (likely stopped)"));
       }
       return ok(mapNavAdToJobPosting(ad));
-    } catch (error: any) {
+    } catch (error) {
       return fail(error instanceof Error ? error : new Error(String(error)));
     }
   },

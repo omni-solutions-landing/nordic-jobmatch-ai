@@ -11,6 +11,10 @@ import { harvestFinnJobs } from "@/lib/harvesters/finn-harvester";
 import { revalidatePath } from "next/cache";
 import { translateKeyword } from "@/lib/ai/translation";
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 export interface HarvestActionResponse {
   success: boolean;
   results?: {
@@ -53,8 +57,8 @@ export async function triggerHarvestAction(formData: {
       try {
         const res = await harvestSwedishJobs(formData.limit, publishedAfterMinutes, rawKeyword || undefined);
         results.sweden = { fetched: res.fetched, mapped: res.mapped, stored: res.stored, skipped: res.skipped };
-      } catch (err: any) {
-        errors.push(`Sverige: ${err.message}`);
+      } catch (err) {
+        errors.push(`Sverige: ${errorMessage(err)}`);
       }
     })(),
 
@@ -70,8 +74,8 @@ export async function triggerHarvestAction(formData: {
           stored: res.stored,
           skipped: res.skipped,
         };
-      } catch (err: any) {
-        errors.push(`Norge: ${err.message}`);
+      } catch (err) {
+        errors.push(`Norge: ${errorMessage(err)}`);
       }
     })(),
 
@@ -80,8 +84,8 @@ export async function triggerHarvestAction(formData: {
       try {
         const res = await harvestIndeedJobs(formData.limit, publishedAfterMinutes, rawKeyword || undefined);
         results.indeed = { fetched: res.fetched, mapped: res.mapped, stored: res.stored, skipped: res.skipped };
-      } catch (err: any) {
-        errors.push(`Indeed: ${err.message}`);
+      } catch (err) {
+        errors.push(`Indeed: ${errorMessage(err)}`);
       }
     })(),
 
@@ -90,8 +94,8 @@ export async function triggerHarvestAction(formData: {
       try {
         const res = await harvestJobindexJobs(formData.limit, publishedAfterMinutes, keywordDa || undefined);
         results.jobindex = { fetched: res.fetched, mapped: res.mapped, stored: res.stored, skipped: res.skipped };
-      } catch (err: any) {
-        errors.push(`Jobindex (DK): ${err.message}`);
+      } catch (err) {
+        errors.push(`Jobindex (DK): ${errorMessage(err)}`);
       }
     })(),
 
@@ -100,8 +104,8 @@ export async function triggerHarvestAction(formData: {
       try {
         const res = await harvestDuunitoriJobs(formData.limit, publishedAfterMinutes, keywordFi || undefined);
         results.duunitori = { fetched: res.fetched, mapped: res.mapped, stored: res.stored, skipped: res.skipped };
-      } catch (err: any) {
-        errors.push(`Duunitori (FI): ${err.message}`);
+      } catch (err) {
+        errors.push(`Duunitori (FI): ${errorMessage(err)}`);
       }
     })(),
 
@@ -110,8 +114,8 @@ export async function triggerHarvestAction(formData: {
       try {
         const res = await harvestFacebookJobs(formData.limit, publishedAfterMinutes, rawKeyword || undefined);
         results.facebook = { fetched: res.fetched, mapped: res.mapped, stored: res.stored, skipped: res.skipped };
-      } catch (err: any) {
-        errors.push(`Facebook: ${err.message}`);
+      } catch (err) {
+        errors.push(`Facebook: ${errorMessage(err)}`);
       }
     })(),
 
@@ -120,8 +124,8 @@ export async function triggerHarvestAction(formData: {
       try {
         const res = await harvestBlocketJobs(formData.limit, publishedAfterMinutes, rawKeyword || undefined);
         results.blocket = { fetched: res.fetched, mapped: res.mapped, stored: res.stored, skipped: res.skipped };
-      } catch (err: any) {
-        errors.push(`Blocket: ${err.message}`);
+      } catch (err) {
+        errors.push(`Blocket: ${errorMessage(err)}`);
       }
     })(),
 
@@ -130,8 +134,8 @@ export async function triggerHarvestAction(formData: {
       try {
         const res = await harvestFinnJobs(formData.limit, publishedAfterMinutes, keywordNo || undefined);
         results.finn = { fetched: res.fetched, mapped: res.mapped, stored: res.stored, skipped: res.skipped };
-      } catch (err: any) {
-        errors.push(`FINN.no: ${err.message}`);
+      } catch (err) {
+        errors.push(`FINN.no: ${errorMessage(err)}`);
       }
     })(),
   ];

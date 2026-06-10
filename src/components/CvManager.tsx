@@ -26,7 +26,7 @@ export function CvManager({ cvs }: CvManagerProps) {
       if (!res.success) {
         setError(res.error || "Misslyckades med att aktivera CV.");
       }
-    } catch (err) {
+    } catch {
       setError("Ett oväntat fel uppstod.");
     } finally {
       setLoadingId(null);
@@ -44,7 +44,7 @@ export function CvManager({ cvs }: CvManagerProps) {
       if (!res.success) {
         setError(res.error || "Misslyckades med att radera CV.");
       }
-    } catch (err) {
+    } catch {
       setError("Ett oväntat fel uppstod.");
     } finally {
       setLoadingId(null);

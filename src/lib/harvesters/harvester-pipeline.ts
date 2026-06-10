@@ -5,7 +5,7 @@ import {
   type RawJobData,
 } from "@/lib/ai/embeddings";
 import { createServiceClient } from "@/lib/supabase/server";
-import type { TablesInsert } from "@/lib/database.types";
+import type { Json, TablesInsert } from "@/lib/database.types";
 import { Result, ok, fail } from "@/lib/fp/result";
 
 export interface UnifiedHarvestResult {
@@ -37,7 +37,7 @@ export interface HarvesterDefinition<RawAd, NormalizedAd> {
 export async function extractUnstructuredData(
   text: string,
   platformName: string
-): Promise<{ hard_requirements: string[]; salary_info: Record<string, any> }> {
+): Promise<{ hard_requirements: string[]; salary_info: Json }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return { hard_requirements: [], salary_info: {} };
@@ -174,7 +174,7 @@ export async function executeHarvestPipeline<Raw, Norm extends Omit<TablesInsert
         await new Promise((r) => setTimeout(r, 200));
       }
     }
-  } catch (err: any) {
+  } catch (err) {
     console.error(`[harvester-pipeline] Embedding generation failed for ${definition.platformName}:`, err);
     return ok({
       platform: definition.platformName,
@@ -182,7 +182,10 @@ export async function executeHarvestPipeline<Raw, Norm extends Omit<TablesInsert
       mapped: mappedJobs.length,
       stored: 0,
       skipped: rawAds.length,
-      errors: [...errors, `Embedding error: ${err.message}`],
+      errors: [
+        ...errors,
+        `Embedding error: ${err instanceof Error ? err.message : String(err)}`,
+      ],
       timing: { fetchMs, embedMs: Math.round(performance.now() - embedStart), storeMs: 0, totalMs: Math.round(performance.now() - totalStart) }
     });
   }

@@ -16,7 +16,7 @@ export function createClient(): SupabaseClient<Database> {
 
   if (!url || !key) {
     // Return a dummy proxy to prevent prerendering / build-time crashes
-    return new Proxy({} as any, {
+    return new Proxy({} as SupabaseClient<Database>, {
       get(target, prop) {
         if (prop === "auth") {
           return {

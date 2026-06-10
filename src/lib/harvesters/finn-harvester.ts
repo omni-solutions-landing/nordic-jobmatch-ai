@@ -1,5 +1,5 @@
 import type { TablesInsert } from "@/lib/database.types";
-import { Result, ok, fail } from "@/lib/fp/result";
+import { ok, fail } from "@/lib/fp/result";
 import {
   HarvesterDefinition,
   executeHarvestPipeline,
@@ -13,9 +13,18 @@ const DEFAULT_COUNTRY = "NO";
 const DEFAULT_LANGUAGE = "no";
 const PLATFORM_NAME = "finn";
 
+/** Raw job shape parsed from FINN.no JSON-LD (and mock fallbacks). */
+interface RawFinnAd {
+  title: string;
+  company?: string;
+  description: string;
+  location?: string;
+  link: string;
+}
+
 // ─── Fetch Helpers ───────────────────────────────────────────────────────────
 
-function getFallbackMockAds(q = "sjåfør", limit: number): any[] {
+function getFallbackMockAds(q = "sjåfør", limit: number): RawFinnAd[] {
   // Mock listings are for local development only. In production a failed
   // fetch must return nothing — never fabricated jobs with dead links.
   if (process.env.ALLOW_MOCK_FALLBACKS !== "true") {
@@ -72,7 +81,7 @@ function getFallbackMockAds(q = "sjåfør", limit: number): any[] {
 export async function fetchFinnJobsRaw(
   limit: number,
   q?: string,
-): Promise<any[]> {
+): Promise<RawFinnAd[]> {
   const queryStr = q ? encodeURIComponent(q) : "sjåfør";
   const finnUrl = `https://www.finn.no/job/fulltime/search.html?q=${queryStr}`;
 
@@ -93,7 +102,7 @@ export async function fetchFinnJobsRaw(
     }
 
     const html = await response.text();
-    const ads: any[] = [];
+    const ads: RawFinnAd[] = [];
     const jsonLdMatches = html.match(
       /<script type="application\/ld\+json">([\s\S]*?)<\/script>/g,
     );
@@ -130,7 +139,7 @@ export async function fetchFinnJobsRaw(
               }
             }
           }
-        } catch (jsonErr) {
+        } catch {
           // Ignore individual parsing issues
         }
       }
@@ -156,7 +165,7 @@ export async function fetchFinnJobsRaw(
 // ─── Harvester Definition ────────────────────────────────────────────────────
 
 export const finnHarvester: HarvesterDefinition<
-  any,
+  RawFinnAd,
   Omit<TablesInsert<"job_postings">, "job_embedding">
 > = {
   platformName: PLATFORM_NAME,
@@ -166,7 +175,7 @@ export const finnHarvester: HarvesterDefinition<
     try {
       const ads = await fetchFinnJobsRaw(limit, q);
       return ok(ads);
-    } catch (error: any) {
+    } catch (error) {
       return fail(error instanceof Error ? error : new Error(String(error)));
     }
   },
@@ -191,7 +200,7 @@ export const finnHarvester: HarvesterDefinition<
         ).toISOString(),
         source_platform: PLATFORM_NAME,
       });
-    } catch (error: any) {
+    } catch (error) {
       return fail(error instanceof Error ? error : new Error(String(error)));
     }
   },

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
 
 export const metadata: Metadata = {
   title: "Integritetspolicy | Privacy Policy",
@@ -13,7 +12,6 @@ export default async function PrivacyPage({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  const tNav = await getTranslations("Navigation");
 
   // Multilingual content
   const content: Record<string, {

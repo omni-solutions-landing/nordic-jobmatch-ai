@@ -8,9 +8,12 @@ export function KeywordSearch() {
   const searchParams = useSearchParams();
   const [input, setInput] = useState("");
 
-  // Populate input from URL query parameter on mount/URL change
+  // Populate input from URL query parameter on mount/URL change. The URL is
+  // an external system (back/forward navigation must reset the field), so
+  // this is a legitimate external-state sync.
   useEffect(() => {
     const query = searchParams.get("q") || "";
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setInput(query);
   }, [searchParams]);
 

@@ -28,7 +28,7 @@ export function DangerZone({ profileId }: DangerZoneProps) {
         setError(res.error || "Ett fel uppstod vid radering av kontot.");
         setLoading(false);
       }
-    } catch (err) {
+    } catch {
       setError("Ett oväntat fel uppstod.");
       setLoading(false);
     }

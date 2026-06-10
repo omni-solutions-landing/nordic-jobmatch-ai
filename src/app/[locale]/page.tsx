@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import type { User } from "@supabase/supabase-js";
 import { createServerClient } from "@/lib/supabase/server";
 
 export default async function LandingPage() {
@@ -8,16 +8,13 @@ export default async function LandingPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Load translations
-  // Note: we can resolve t on server components since they run in the translation context
-  const tLanding = await import(`../../../messages/sv.json`).then(m => m.default.Landing); // fallback static load if needed, but next-intl useTranslations is standard
   return <LandingClient user={user} />;
 }
 
 // Keep it simple and use a Client/Server wrapper or server side translations
 import { getTranslations } from "next-intl/server";
 
-async function LandingClient({ user }: { user: any }) {
+async function LandingClient({ user }: { user: User | null }) {
   const t = await getTranslations("Landing");
   const tNav = await getTranslations("Navigation");
 

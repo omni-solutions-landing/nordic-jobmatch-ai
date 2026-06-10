@@ -8,9 +8,13 @@
 
 @theme {
   /* ── Typography ──────────────────────────────────────────────────────────── */
-  --font-sans: "Inter", "system-ui", "-apple-system", "Segoe UI", "Roboto",
-    "Helvetica Neue", "Arial", "sans-serif";
-  --font-mono: "JetBrains Mono", "Fira Code", "Consolas", "monospace";
+  /* Fonts are self-hosted via next/font (see [locale]/layout.tsx), which
+     exposes them through these CSS variables. Named families stay as
+     fallbacks for contexts rendered outside the locale layout. */
+  --font-sans: var(--font-inter, "Inter"), "system-ui", "-apple-system",
+    "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif";
+  --font-mono: var(--font-jetbrains-mono, "JetBrains Mono"), "Fira Code",
+    "Consolas", "monospace";
 
   /* ── Brand Colors ────────────────────────────────────────────────────────── */
   --color-brand-50: oklch(0.97 0.01 250);

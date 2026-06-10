@@ -1,5 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/server";
-import type { Database } from "@/lib/database.types";
+import type { Json } from "@/lib/database.types";
 import webpush from "web-push";
 
 // Initialize web-push with VAPID keys
@@ -17,7 +17,7 @@ interface NewMatchNotification {
   fullName: string;
   emailEnabled: boolean;
   pushEnabled: boolean;
-  pushSubscription: any;
+  pushSubscription: Json | null;
   matches: Array<{
     id: string;
     title: string;
@@ -113,7 +113,7 @@ async function sendEmailAlert(
  * Sends push notification via Web Push
  */
 async function sendPushAlert(
-  subscription: any,
+  subscription: Json,
   matches: NewMatchNotification["matches"]
 ): Promise<boolean> {
   if (!subscription) return false;
@@ -128,7 +128,10 @@ async function sendPushAlert(
   });
 
   try {
-    await webpush.sendNotification(subscription, payload);
+    await webpush.sendNotification(
+      subscription as unknown as webpush.PushSubscription,
+      payload,
+    );
     console.log("[Notifications] Push notification successfully sent");
     return true;
   } catch (err) {
@@ -223,7 +226,7 @@ export async function matchAndAlertUsersOfNewJobs(): Promise<{
     }
 
     // 7. Dispatch alerts
-    const alertsToTrigger: Promise<any>[] = [];
+    const alertsToTrigger: Promise<boolean>[] = [];
 
     if (emailEnabled) {
       alertsToTrigger.push(sendEmailAlert(profile.email, profile.full_name || "Användare", newMatches));

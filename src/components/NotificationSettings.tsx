@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { updateNotificationPreferences, savePushSubscription } from "@/app/actions/notification-actions";
+import type { Json } from "@/lib/database.types";
 
 interface NotificationSettingsProps {
   readonly initialEmailEnabled: boolean;
@@ -36,6 +37,9 @@ export function NotificationSettings({
       "serviceWorker" in navigator &&
       "PushManager" in window
     ) {
+      // Browser feature detection can only run on the client; setting it in
+      // an initializer would break SSR hydration.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsSupported(true);
     }
   }, []);
@@ -98,7 +102,7 @@ export function NotificationSettings({
         });
 
         // Save subscription
-        const result = await savePushSubscription(subscription.toJSON() as any);
+        const result = await savePushSubscription(subscription.toJSON() as Json);
         if (result.success) {
           setPushEnabled(true);
           setSuccessMsg("Push-notiser har aktiverats.");
@@ -122,9 +126,10 @@ export function NotificationSettings({
           setErrorMsg("Kunde inte ta bort push-prenumeration: " + result.error.message);
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setErrorMsg("Ett fel uppstod vid konfiguration av push-notiser: " + err.message);
+      const message = err instanceof Error ? err.message : String(err);
+      setErrorMsg("Ett fel uppstod vid konfiguration av push-notiser: " + message);
     } finally {
       setLoading(false);
     }

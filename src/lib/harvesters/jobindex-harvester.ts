@@ -1,5 +1,5 @@
 import type { TablesInsert } from "@/lib/database.types";
-import { Result, ok, fail } from "@/lib/fp/result";
+import { ok, fail } from "@/lib/fp/result";
 import {
   HarvesterDefinition,
   executeHarvestPipeline,
@@ -13,9 +13,18 @@ const DEFAULT_COUNTRY = "DK";
 const DEFAULT_LANGUAGE = "da";
 const PLATFORM_NAME = "jobindex";
 
+/** Raw RSS item shape produced by the fetcher (and mock fallbacks). */
+interface RawRssAd {
+  title: string;
+  link: string;
+  description: string;
+  pubDate?: string;
+  company?: string;
+}
+
 // ─── Fetch Helper ────────────────────────────────────────────────────────────
 
-function getFallbackMockAds(q = "chauffør", limit: number): any[] {
+function getFallbackMockAds(q = "chauffør", limit: number): RawRssAd[] {
   // Mock listings are for local development only. In production a failed
   // fetch must return nothing — never fabricated jobs with dead links.
   if (process.env.ALLOW_MOCK_FALLBACKS !== "true") {
@@ -60,7 +69,7 @@ function getFallbackMockAds(q = "chauffør", limit: number): any[] {
 export async function fetchJobindexJobsRaw(
   limit: number,
   q?: string,
-): Promise<any[]> {
+): Promise<RawRssAd[]> {
   const queryStr = q ? encodeURIComponent(q) : "chauffør";
   const rssUrl = `https://www.jobindex.dk/jobsoegning?q=${queryStr}&format=rss`;
 
@@ -78,7 +87,7 @@ export async function fetchJobindexJobsRaw(
     }
 
     const xmlText = await response.text();
-    const items: any[] = [];
+    const items: RawRssAd[] = [];
     const itemRegex = /<item>([\s\S]*?)<\/item>/g;
     let match;
 
@@ -136,7 +145,7 @@ export async function fetchJobindexJobsRaw(
 // ─── Harvester Definition ────────────────────────────────────────────────────
 
 export const jobindexHarvester: HarvesterDefinition<
-  any,
+  RawRssAd,
   Omit<TablesInsert<"job_postings">, "job_embedding">
 > = {
   platformName: PLATFORM_NAME,
@@ -146,7 +155,7 @@ export const jobindexHarvester: HarvesterDefinition<
     try {
       const ads = await fetchJobindexJobsRaw(limit, q);
       return ok(ads);
-    } catch (error: any) {
+    } catch (error) {
       return fail(error instanceof Error ? error : new Error(String(error)));
     }
   },
@@ -171,7 +180,7 @@ export const jobindexHarvester: HarvesterDefinition<
         ).toISOString(),
         source_platform: PLATFORM_NAME,
       });
-    } catch (error: any) {
+    } catch (error) {
       return fail(error instanceof Error ? error : new Error(String(error)));
     }
   },

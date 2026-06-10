@@ -1,5 +1,5 @@
 import type { TablesInsert } from "@/lib/database.types";
-import { Result, ok, fail } from "@/lib/fp/result";
+import { ok, fail } from "@/lib/fp/result";
 import {
   HarvesterDefinition,
   executeHarvestPipeline,
@@ -13,9 +13,18 @@ const DEFAULT_COUNTRY = "SE";
 const DEFAULT_LANGUAGE = "sv";
 const PLATFORM_NAME = "facebook";
 
+/** Raw post shape from the Meta Graph API feed (and mock fallbacks). */
+interface RawFacebookPost {
+  id: string;
+  message: string;
+  created_time: string;
+  permalink_url: string;
+  groupId?: string;
+}
+
 // ─── Fetch Helpers ───────────────────────────────────────────────────────────
 
-function getFallbackMockPosts(q = "chaufför", limit: number): any[] {
+function getFallbackMockPosts(q = "chaufför", limit: number): RawFacebookPost[] {
   // Mock listings are for local development only. In production a failed
   // fetch must return nothing — never fabricated jobs with dead links.
   if (process.env.ALLOW_MOCK_FALLBACKS !== "true") {
@@ -63,7 +72,7 @@ function getFallbackMockPosts(q = "chaufför", limit: number): any[] {
 export async function fetchFacebookJobsRaw(
   limit: number,
   q?: string,
-): Promise<any[]> {
+): Promise<RawFacebookPost[]> {
   const accessToken = process.env.FACEBOOK_ACCESS_TOKEN;
   const groupIdsParam =
     process.env.FACEBOOK_GROUP_IDS ||
@@ -77,7 +86,7 @@ export async function fetchFacebookJobsRaw(
     return getFallbackMockPosts(q, limit);
   }
 
-  const allPosts: any[] = [];
+  const allPosts: RawFacebookPost[] = [];
 
   for (const groupId of groupIds) {
     const graphUrl = `https://graph.facebook.com/v19.0/${groupId}/feed?limit=${limit}&fields=id,message,created_time,permalink_url&access_token=${accessToken}`;
@@ -94,12 +103,12 @@ export async function fetchFacebookJobsRaw(
         continue;
       }
 
-      const json = await response.json();
+      const json: { data?: RawFacebookPost[] } = await response.json();
       const posts = json.data || [];
 
       const filteredPosts = posts
-        .filter((post: any) => post.message && post.message.trim().length > 20)
-        .map((post: any) => ({
+        .filter((post) => post.message && post.message.trim().length > 20)
+        .map((post) => ({
           id: post.id,
           message: post.message,
           created_time: post.created_time,
@@ -175,7 +184,7 @@ Output JSON:
 // ─── Harvester Definition ────────────────────────────────────────────────────
 
 export const facebookHarvester: HarvesterDefinition<
-  any,
+  RawFacebookPost,
   Omit<TablesInsert<"job_postings">, "job_embedding">
 > = {
   platformName: PLATFORM_NAME,
@@ -185,7 +194,7 @@ export const facebookHarvester: HarvesterDefinition<
     try {
       const ads = await fetchFacebookJobsRaw(limit, q);
       return ok(ads);
-    } catch (error: any) {
+    } catch (error) {
       return fail(error instanceof Error ? error : new Error(String(error)));
     }
   },
@@ -210,7 +219,7 @@ export const facebookHarvester: HarvesterDefinition<
         ).toISOString(), // shorter expiry for social postings
         source_platform: PLATFORM_NAME,
       });
-    } catch (error: any) {
+    } catch (error) {
       return fail(error instanceof Error ? error : new Error(String(error)));
     }
   },

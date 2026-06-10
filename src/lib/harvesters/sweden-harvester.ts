@@ -224,7 +224,7 @@ export async function fetchSwedishJobs(
     }
 
     return ok(allAds.slice(0, limit));
-  } catch (error: any) {
+  } catch (error) {
     return fail(error instanceof Error ? error : new Error(String(error)));
   }
 }
@@ -317,7 +317,7 @@ export const swedenHarvester: HarvesterDefinition<
   mapToSchema: async (ad) => {
     try {
       return ok(mapJobTechAdToJobPosting(ad));
-    } catch (error: any) {
+    } catch (error) {
       return fail(error instanceof Error ? error : new Error(String(error)));
     }
   },

@@ -1,5 +1,5 @@
 import type { TablesInsert } from "@/lib/database.types";
-import { Result, ok, fail } from "@/lib/fp/result";
+import { ok, fail } from "@/lib/fp/result";
 import {
   HarvesterDefinition,
   executeHarvestPipeline,
@@ -13,9 +13,19 @@ const DEFAULT_COUNTRY = "SE";
 const DEFAULT_LANGUAGE = "sv";
 const PLATFORM_NAME = "blocket";
 
+/** Raw listing shape scraped from Blocket Jobb (and mock fallbacks). */
+interface RawBlocketAd {
+  title: string;
+  company?: string;
+  description: string;
+  location?: string;
+  link: string;
+  id?: string | number;
+}
+
 // ─── Fetch Helpers ───────────────────────────────────────────────────────────
 
-function getFallbackMockAds(q = "chaufför", limit: number): any[] {
+function getFallbackMockAds(q = "chaufför", limit: number): RawBlocketAd[] {
   // Mock listings are for local development only. In production a failed
   // fetch must return nothing — never fabricated jobs with dead links.
   if (process.env.ALLOW_MOCK_FALLBACKS !== "true") {
@@ -63,7 +73,7 @@ function getFallbackMockAds(q = "chaufför", limit: number): any[] {
 export async function fetchBlocketJobsRaw(
   limit: number,
   q?: string,
-): Promise<any[]> {
+): Promise<RawBlocketAd[]> {
   const queryStr = q ? encodeURIComponent(q) : "chaufför";
   const blocketUrl = `https://jobb.blocket.se/lediga-jobb/?q=${queryStr}`;
 
@@ -81,7 +91,7 @@ export async function fetchBlocketJobsRaw(
     }
 
     const htmlText = await response.text();
-    const ads: any[] = [];
+    const ads: RawBlocketAd[] = [];
     const jsonMatch = htmlText.match(
       /<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/,
     );
@@ -132,7 +142,7 @@ export async function fetchBlocketJobsRaw(
 // ─── Harvester Definition ────────────────────────────────────────────────────
 
 export const blocketHarvester: HarvesterDefinition<
-  any,
+  RawBlocketAd,
   Omit<TablesInsert<"job_postings">, "job_embedding">
 > = {
   platformName: PLATFORM_NAME,
@@ -142,7 +152,7 @@ export const blocketHarvester: HarvesterDefinition<
     try {
       const ads = await fetchBlocketJobsRaw(limit, q);
       return ok(ads);
-    } catch (error: any) {
+    } catch (error) {
       return fail(error instanceof Error ? error : new Error(String(error)));
     }
   },
@@ -167,7 +177,7 @@ export const blocketHarvester: HarvesterDefinition<
         ).toISOString(),
         source_platform: PLATFORM_NAME,
       });
-    } catch (error: any) {
+    } catch (error) {
       return fail(error instanceof Error ? error : new Error(String(error)));
     }
   },

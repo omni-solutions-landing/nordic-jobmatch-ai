@@ -169,7 +169,7 @@ nordic-jobmatch-ai/
 npm run dev          # Start dev server (Turbopack)
 npm run build        # Production build
 npm run start        # Serve production build
-npm run lint         # ⚠️ BROKEN: Next.js 16 removed `next lint` and no ESLint config exists yet
+npm run lint         # ESLint 9 flat config (eslint.config.mjs, eslint-config-next presets)
 npm run typecheck    # tsc --noEmit (strict)
 npm run test         # Vitest (unit tests, src/**/*.test.ts)
 npm run test:watch   # Vitest watch mode

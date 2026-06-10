@@ -10,6 +10,7 @@
  */
 
 import { z } from "zod";
+import { zodToJsonSchema } from "zod-to-json-schema";
 
 // ─── Reusable Enums ──────────────────────────────────────────────────────────
 
@@ -294,12 +295,6 @@ export type CvStructuredData = z.infer<typeof CvStructuredDataSchema>;
 export function zodToGeminiSchema(schema: z.ZodType): Record<string, unknown> {
   // Gemini's responseSchema accepts a subset of JSON Schema.
   // We use zod-to-json-schema for conversion, then strip unsupported keys.
-  // This is a build-time dependency only.
-  //
-  // Install: npm install zod-to-json-schema
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { zodToJsonSchema } = require("zod-to-json-schema");
-
   const jsonSchema = zodToJsonSchema(schema, {
     target: "openApi3",
     $refStrategy: "none", // Inline all refs — Gemini doesn't support $ref
@@ -307,7 +302,7 @@ export function zodToGeminiSchema(schema: z.ZodType): Record<string, unknown> {
 
   // Helper to recursively strip keys not supported by Gemini responseSchema
   // (specifically "additionalProperties")
-  function cleanSchema(obj: any): any {
+  function cleanSchema(obj: unknown): unknown {
     if (obj === null || typeof obj !== "object") {
       return obj;
     }
@@ -316,12 +311,12 @@ export function zodToGeminiSchema(schema: z.ZodType): Record<string, unknown> {
       return obj.map(cleanSchema);
     }
 
-    const cleaned: any = {};
-    for (const key of Object.keys(obj)) {
+    const cleaned: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
       if (key === "additionalProperties") {
         continue;
       }
-      cleaned[key] = cleanSchema(obj[key]);
+      cleaned[key] = cleanSchema(value);
     }
     return cleaned;
   }

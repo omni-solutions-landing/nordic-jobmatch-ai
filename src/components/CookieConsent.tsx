@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 export function CookieConsent() {
   const [showBanner, setShowBanner] = useState(false);
@@ -14,15 +15,18 @@ export function CookieConsent() {
   });
 
   useEffect(() => {
-    // Check if consent already exists
+    // localStorage is client-only: reading it in a state initializer would
+    // cause an SSR hydration mismatch, so the banner reveal must happen in
+    // an after-mount effect.
     const stored = localStorage.getItem("nordic-jobmatch-cookie-consent");
     if (!stored) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShowBanner(true);
     } else {
       try {
         const parsed = JSON.parse(stored);
         setConsent({ ...parsed, essential: true });
-      } catch (e) {
+      } catch {
         setShowBanner(true);
       }
     }
@@ -71,9 +75,9 @@ export function CookieConsent() {
             <h3 className="text-lg font-bold text-white mb-2">Vi bryr oss om din integritet 🍪</h3>
             <p className="text-neutral-400 text-sm leading-relaxed mb-6">
               Vi använder cookies för att förbättra din upplevelse, analysera trafik och för funktionalitet relaterad till jobbsökande. Enligt GDPR har du rätt att välja vilka cookies du godkänner. Läs mer i vår{" "}
-              <a href="/privacy" className="text-aurora-green hover:underline">
+              <Link href="/privacy" className="text-aurora-green hover:underline">
                 integritetspolicy
-              </a>
+              </Link>
               .
             </p>
 

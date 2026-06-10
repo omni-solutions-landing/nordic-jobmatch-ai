@@ -110,7 +110,7 @@ self.addEventListener('push', (event) => {
   if (event.data) {
     try {
       data = event.data.json();
-    } catch (e) {
+    } catch {
       data = { title: 'Nordic JobMatch AI', body: event.data.text() };
     }
   }

@@ -45,11 +45,14 @@ export function DeepHarvestPanel() {
       } else {
         setStatus("Skörden stötte på problem.");
       }
-    } catch (err: any) {
+    } catch (err) {
       setStatus("Ett oväntat fel uppstod.");
       setResult({
         success: false,
-        error: err.message || "Ett okänt fel uppstod under skörden.",
+        error:
+          err instanceof Error && err.message
+            ? err.message
+            : "Ett okänt fel uppstod under skörden.",
       });
     } finally {
       setIsHarvesting(false);
