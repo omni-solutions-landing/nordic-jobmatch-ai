@@ -46,12 +46,21 @@ Nordic JobMatch AI is a cross-border job-matching web application serving the No
 
 ```
 nordic-jobmatch-ai/
-├── .env.local.example           # Required env vars template (4 keys)
+├── .env.local.example           # Env vars template (required + optional, documented)
 ├── next.config.ts               # Security headers, next-intl wrapper
 ├── postcss.config.mjs           # Tailwind v4 via @tailwindcss/postcss
 ├── tsconfig.json                # Strict mode, @/* → ./src/* alias
 ├── package.json                 # Scripts, deps
-├── vercel.json                  # Overrides Vercel framework to nextjs
+├── vercel.json                  # framework: nextjs + daily harvest cron (9:00 UTC)
+├── eslint.config.mjs            # ESLint 9 flat config (eslint-config-next presets)
+├── vitest.config.ts             # Vitest config (@ alias, src/**/*.test.ts)
+│
+├── scripts/                     # One-off ops scripts, run with npx tsx
+│   ├── run-harvest.ts           # Manual harvest of all sources + DB count report
+│   ├── verify-embeddings.ts     # Embedding model-migration check (norm + self-similarity)
+│   ├── regenerate-embeddings.ts # Regenerate all stored embeddings after model change
+│   ├── test-cv-delete.ts        # Live E2E test of CV deletion through an RLS-bound client
+│   └── seed-ui-test-user.ts     # Seed/remove throwaway user + CV for UI verification
 │
 ├── messages/                    # next-intl translation dictionaries
 │   ├── sv.json                  # Swedish (default, primary)
@@ -86,6 +95,9 @@ nordic-jobmatch-ai/
 │   │   ├── page.tsx                   # Pass-through locale redirect
 │   │   ├── layout.tsx                 # Pass-through root layout wrapper
 │   │   │
+│   │   ├── api/cron/harvest/          # Daily harvest endpoint (CRON_SECRET bearer auth)
+│   │   ├── actions/                   # Server Actions (cv, match, search, harvest, auth, notifications)
+│   │   │
 │   │   └── [locale]/                  # next-intl localized directory
 │   │       ├── layout.tsx             # Localized root layout (loads translations, CookieConsent)
 │   │       ├── page.tsx               # Localized landing page
@@ -105,7 +117,7 @@ nordic-jobmatch-ai/
 │   │
 │   ├── components/
 │   │   ├── CVUploadForm.tsx
-│   │   ├── CvManager.tsx              # CV List selector, activation, deletion actions
+│   │   ├── CvManager.tsx              # CV card: list, activation, header Radera (deletes active CV)
 │   │   ├── DangerZone.tsx             # Secure account deletion confirmation
 │   │   ├── CookieConsent.tsx          # GDPR cookie consent banner (Essential/Analytics/Marketing)
 │   │   ├── CountrySelector.tsx        # Flag filters for Sverige, Norge, Danmark, Finland
@@ -135,6 +147,15 @@ nordic-jobmatch-ai/
 │       │   ├── prerequisites.test.ts  # Unit tests
 │       │   └── explanations.ts        # generateMatchExplanationsBatch() — ONE Gemini call per user + deterministic fallback
 │       │
+│       ├── search/
+│       │   ├── keywords.ts            # expandKeywordsWithTranslations() — cross-language keyword expansion
+│       │   └── keywords.test.ts       # Unit tests
+│       │
+│       ├── cv/
+│       │   ├── delete-cv.ts           # deleteCvForUser() — deletion core with active-CV succession
+│       │   ├── next-active.ts         # pickNextActiveCv() — most-recently-updated wins
+│       │   └── next-active.test.ts    # Unit tests
+│       │
 │       ├── test-utils/
 │       │   └── cv-fixture.ts          # makeCv() — schema-validated CvStructuredData test fixture builder
 │       │
@@ -147,18 +168,18 @@ nordic-jobmatch-ai/
 │       │   ├── jooble-harvester.ts    # Jooble partner API — all 4 Nordic countries (requires JOOBLE_API_KEY)
 │       │   └── facebook-harvester.ts  # Facebook group posts (requires FACEBOOK_ACCESS_TOKEN; Groups API restricted)
 │       │
-│       └── ai/
-│           ├── cv-parser/             # Gemini parsing logic with transient retry fallbacks
-│           ├── translation.ts         # Keyword translation with fallbacks and map lookup
-│           └── embeddings/            # 768-d Gemini Embedding 2 generators
-│               ├── index.ts           # Barrel export
-│               ├── generator.ts       # generateEmbedding() + generateEmbeddingsBatch()
-│               ├── stringifiers.ts    # stringifyCvForEmbedding() + stringifyJobForEmbedding()
-│               └── stringifiers.test.ts # Unit tests
-│           │
-│           └── infrastructure/
-│               └── notifications/
-│                   └── service.ts     # Email & Push notification engine
+│       ├── ai/
+│       │   ├── cv-parser/             # Gemini parsing logic with transient retry fallbacks
+│       │   ├── translation.ts         # Keyword translation with fallbacks and map lookup
+│       │   └── embeddings/            # 768-d gemini-embedding-001 generators
+│       │       ├── index.ts           # Barrel export
+│       │       ├── generator.ts       # generateEmbedding() + generateEmbeddingsBatch()
+│       │       ├── stringifiers.ts    # stringifyCvForEmbedding() + stringifyJobForEmbedding()
+│       │       └── stringifiers.test.ts # Unit tests
+│       │
+│       └── infrastructure/
+│           └── notifications/
+│               └── service.ts         # Email & Push notification engine
 ```
 
 ---
@@ -229,7 +250,7 @@ FormData (PDF) → validateFile() → verifyAuth() → ArrayBuffer → Buffer
 | `src/lib/harvesters/harvester-pipeline.ts` | Functional pipeline orchestrator `executeHarvestPipeline` running all normalizer/embedding/storage steps. |
 | `src/lib/ai/cv-parser/schema.ts` | The Zod schema defining `CvStructuredData`. |
 | `src/lib/ai/cv-parser/parser.ts` | `parseCv()` — orchestrates Gemini call, JSON parse, Zod validation. |
-| `src/lib/ai/embeddings/generator.ts` | `generateEmbedding()` and `generateEmbeddingsBatch()` — Gemini gemini-embedding-2 wrapper. |
+| `src/lib/ai/embeddings/generator.ts` | `generateEmbedding()` and `generateEmbeddingsBatch()` — gemini-embedding-001 wrapper (768-d via outputDimensionality). |
 | `src/lib/database.types.ts` | Auto-generated TypeScript types from Supabase schema. |
 | `src/proxy.ts` | Handles cookies session sync with Supabase and translations fallback next-intl routing. |
 | `src/app/actions/cv-actions.ts` | `uploadAndProcessCv` Server Action — processes and uploads candidate CVs using monad flows. |
@@ -260,7 +281,7 @@ FormData (PDF) → validateFile() → verifyAuth() → ArrayBuffer → Buffer
 - **Batch embedding limit** — Gemini allows max 100 texts per `batchEmbedContents` call.
 - **`source_url` UNIQUE** on `job_postings` — This is the deduplication key for all harvesters.
 - **Multi-CV support** — The database trigger automatically manages active/inactive flags.
-- **Vercel Hobby plan limitations** — `vercel.json` has been simplified to `{ "framework": "nextjs" }`. Regional routing configurations (`regions: ["arn1"]`) are omitted.
+- **Vercel Hobby plan limitations** — `vercel.json` contains only `framework: nextjs` plus the daily harvest cron. Regional routing configurations (`regions: ["arn1"]`) are omitted. Env vars added in Vercel only apply to NEW deployments (redeploy after changing them). Production domain: project-518o0.vercel.app (Supabase↔Vercel integration syncs the Supabase env vars).
 - **Embedding model** — model is gemini-embedding-001 (text-embedding-004 was retired by Google 2026-01-14). 768-d is requested via outputDimensionality. Changing the model invalidates ALL stored embeddings — both cv_profiles.skills_embedding and job_postings.job_embedding must be regenerated (use `scripts/regenerate-embeddings.ts`, verify with `scripts/verify-embeddings.ts`). Last verified/regenerated: 2026-06-10.
 - **Parser fallback models** — `parser.ts` falls back to gemini-2.0-flash then gemini-3.5-flash on transient errors. gemini-3.5-flash is a real model (verified via ListModels 2026-06-10, version 3.5-flash-05-2026).
 - **Harvester mock fallbacks** — mock fallbacks only activate when ALLOW_MOCK_FALLBACKS=true. Never set this flag in production.
