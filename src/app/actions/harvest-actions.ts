@@ -2,12 +2,9 @@
 
 import { harvestSwedishJobs } from "@/lib/harvesters/sweden-harvester";
 import { harvestNorwegianJobs } from "@/lib/harvesters/norway-harvester";
-import { harvestIndeedJobs } from "@/lib/harvesters/indeed-harvester";
 import { harvestJobindexJobs } from "@/lib/harvesters/jobindex-harvester";
 import { harvestDuunitoriJobs } from "@/lib/harvesters/duunitori-harvester";
 import { harvestFacebookJobs } from "@/lib/harvesters/facebook-harvester";
-import { harvestBlocketJobs } from "@/lib/harvesters/blocket-harvester";
-import { harvestFinnJobs } from "@/lib/harvesters/finn-harvester";
 import { revalidatePath } from "next/cache";
 import { translateKeyword } from "@/lib/ai/translation";
 
@@ -20,12 +17,9 @@ export interface HarvestActionResponse {
   results?: {
     sweden?: { fetched: number; mapped: number; stored: number; skipped: number };
     norway?: { discovered: number; active: number; fetched: number; mapped: number; stored: number; skipped: number };
-    indeed?: { fetched: number; mapped: number; stored: number; skipped: number };
     jobindex?: { fetched: number; mapped: number; stored: number; skipped: number };
     duunitori?: { fetched: number; mapped: number; stored: number; skipped: number };
     facebook?: { fetched: number; mapped: number; stored: number; skipped: number };
-    blocket?: { fetched: number; mapped: number; stored: number; skipped: number };
-    finn?: { fetched: number; mapped: number; stored: number; skipped: number };
   };
   error?: string;
 }
@@ -42,13 +36,12 @@ export async function triggerHarvestAction(formData: {
   const rawKeyword = formData.keyword?.trim() || "";
 
   // Pre-translate search keywords for target country languages in parallel
-  const [keywordNo, keywordDa, keywordFi] = await Promise.all([
-    rawKeyword ? translateKeyword(rawKeyword, "no") : Promise.resolve(""),
+  const [keywordDa, keywordFi] = await Promise.all([
     rawKeyword ? translateKeyword(rawKeyword, "da") : Promise.resolve(""),
     rawKeyword ? translateKeyword(rawKeyword, "fi") : Promise.resolve(""),
   ]);
 
-  console.log(`[triggerHarvestAction] Keyword translations: Original="${rawKeyword}", NO="${keywordNo}", DA="${keywordDa}", FI="${keywordFi}"`);
+  console.log(`[triggerHarvestAction] Keyword translations: Original="${rawKeyword}", DA="${keywordDa}", FI="${keywordFi}"`);
 
   // Run all harvesters in parallel (with translated keywords)
   const runs = [
@@ -76,16 +69,6 @@ export async function triggerHarvestAction(formData: {
         };
       } catch (err) {
         errors.push(`Norge: ${errorMessage(err)}`);
-      }
-    })(),
-
-    // 3. Indeed
-    (async () => {
-      try {
-        const res = await harvestIndeedJobs(formData.limit, publishedAfterMinutes, rawKeyword || undefined);
-        results.indeed = { fetched: res.fetched, mapped: res.mapped, stored: res.stored, skipped: res.skipped };
-      } catch (err) {
-        errors.push(`Indeed: ${errorMessage(err)}`);
       }
     })(),
 
@@ -119,25 +102,6 @@ export async function triggerHarvestAction(formData: {
       }
     })(),
 
-    // 7. Blocket Jobb - uses original Swedish keyword
-    (async () => {
-      try {
-        const res = await harvestBlocketJobs(formData.limit, publishedAfterMinutes, rawKeyword || undefined);
-        results.blocket = { fetched: res.fetched, mapped: res.mapped, stored: res.stored, skipped: res.skipped };
-      } catch (err) {
-        errors.push(`Blocket: ${errorMessage(err)}`);
-      }
-    })(),
-
-    // 8. FINN.no (Norway) - uses translated Norwegian keyword
-    (async () => {
-      try {
-        const res = await harvestFinnJobs(formData.limit, publishedAfterMinutes, keywordNo || undefined);
-        results.finn = { fetched: res.fetched, mapped: res.mapped, stored: res.stored, skipped: res.skipped };
-      } catch (err) {
-        errors.push(`FINN.no: ${errorMessage(err)}`);
-      }
-    })(),
   ];
 
   await Promise.all(runs);

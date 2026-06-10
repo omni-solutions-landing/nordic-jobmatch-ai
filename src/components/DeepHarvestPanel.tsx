@@ -188,14 +188,8 @@ export function DeepHarvestPanel() {
                   {result.results?.sweden && (
                     <p>🇸🇪 Sverige (JobTech): Hämtade {result.results.sweden.fetched} annonser, sparade {result.results.sweden.stored} st.</p>
                   )}
-                  {result.results?.blocket && (
-                    <p>📦 Sverige (Blocket): Hämtade {result.results.blocket.fetched} annonser, sparade {result.results.blocket.stored} st.</p>
-                  )}
                   {result.results?.norway && (
                     <p>🇳🇴 Norge (NAV): Hämtade detaljer för {result.results.norway.fetched} annonser, sparade {result.results.norway.stored} st.</p>
-                  )}
-                  {result.results?.indeed && (
-                    <p>🔍 Globalt (Indeed): Hämtade {result.results.indeed.fetched} annonser, sparade {result.results.indeed.stored} st.</p>
                   )}
                   {result.results?.jobindex && (
                     <p>🇩🇰 Danmark (Jobindex): Hämtade {result.results.jobindex.fetched} annonser, sparade {result.results.jobindex.stored} st.</p>
@@ -205,9 +199,6 @@ export function DeepHarvestPanel() {
                   )}
                   {result.results?.facebook && (
                     <p>👥 Sociala medier (Facebook): Hämtade {result.results.facebook.fetched} poster, sparade {result.results.facebook.stored} st.</p>
-                  )}
-                  {result.results?.finn && (
-                    <p>🇳🇴 Norge (FINN.no): Hämtade {result.results.finn.fetched} annonser, sparade {result.results.finn.stored} st.</p>
                   )}
                   {result.error && (
                     <p className="text-error font-medium mt-1">{result.error}</p>

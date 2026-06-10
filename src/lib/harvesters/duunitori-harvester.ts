@@ -13,18 +13,43 @@ const DEFAULT_COUNTRY = "FI";
 const DEFAULT_LANGUAGE = "fi";
 const PLATFORM_NAME = "duunitori";
 
-/** Raw RSS item shape produced by the fetcher (and mock fallbacks). */
-interface RawRssAd {
+/**
+ * Duunitori's public JSON API. The old /ammattilehti/rss.xml feed was removed
+ * (404 since at least 2026-06); /api/v1/jobentries is what the site itself
+ * uses and returns paginated JSON.
+ */
+const DUUNITORI_API_URL = "https://duunitori.fi/api/v1/jobentries";
+const PAGE_FETCH_LIMIT = 5;
+
+/** Normalized raw ad shape produced by the fetcher (and mock fallbacks). */
+interface RawDuunitoriAd {
   title: string;
   link: string;
   description: string;
   pubDate?: string;
   company?: string;
+  location?: string;
+}
+
+/** One job entry as returned by the Duunitori JSON API. */
+interface DuunitoriApiJob {
+  heading: string;
+  date_posted: string;
+  slug: string;
+  municipality_name: string | null;
+  company_name: string | null;
+  descr: string;
+}
+
+interface DuunitoriApiResponse {
+  count: number;
+  next: string | null;
+  results: DuunitoriApiJob[];
 }
 
 // ─── Fetch Helper ────────────────────────────────────────────────────────────
 
-function getFallbackMockAds(q = "chaufför", limit: number): RawRssAd[] {
+function getFallbackMockAds(q = "chaufför", limit: number): RawDuunitoriAd[] {
   // Mock listings are for local development only. In production a failed
   // fetch must return nothing — never fabricated jobs with dead links.
   if (process.env.ALLOW_MOCK_FALLBACKS !== "true") {
@@ -70,65 +95,59 @@ function getFallbackMockAds(q = "chaufför", limit: number): RawRssAd[] {
 export async function fetchDuunitoriJobsRaw(
   limit: number,
   q?: string,
-): Promise<RawRssAd[]> {
-  const queryStr = q ? encodeURIComponent(q) : "kuljettaja";
-  const rssUrl = `https://duunitori.fi/ammattilehti/rss.xml?avainsana=${queryStr}`;
+  lookbackMinutes?: number,
+): Promise<RawDuunitoriAd[]> {
+  const cutoffMs = lookbackMinutes
+    ? Date.now() - lookbackMinutes * 60 * 1000
+    : null;
 
   try {
-    const response = await fetch(rssUrl, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      },
-      signal: AbortSignal.timeout(15_000),
-    });
+    const items: RawDuunitoriAd[] = [];
+    let url: string | null = `${DUUNITORI_API_URL}?search=${encodeURIComponent(
+      q || "kuljettaja",
+    )}`;
 
-    if (!response.ok) {
-      throw new Error(`Duunitori RSS returned status ${response.status}`);
-    }
+    for (let page = 0; url && items.length < limit && page < PAGE_FETCH_LIMIT; page++) {
+      const response = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        },
+        signal: AbortSignal.timeout(15_000),
+      });
 
-    const xmlText = await response.text();
-    const items: RawRssAd[] = [];
-    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-    let match;
+      if (!response.ok) {
+        throw new Error(`Duunitori API returned status ${response.status}`);
+      }
 
-    while ((match = itemRegex.exec(xmlText)) !== null && items.length < limit) {
-      const itemContent = match[1] || "";
-      const title =
-        (itemContent.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || "";
-      const link =
-        (itemContent.match(/<link>([\s\S]*?)<\/link>/) || [])[1] || "";
-      const description =
-        (itemContent.match(/<description>([\s\S]*?)<\/description>/) || [])[1] ||
-        "";
-      const pubDate =
-        (itemContent.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || "";
+      const data: DuunitoriApiResponse = await response.json();
 
-      const cleanTitle = title
-        .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, "$1")
-        .replace(/&amp;/g, "&")
-        .trim();
-      const cleanDesc = description
-        .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, "$1")
-        .replace(/<[^>]*>/g, "")
-        .trim();
-
-      if (cleanTitle && link) {
+      for (const job of data.results) {
+        if (items.length >= limit) break;
+        if (!job.heading || !job.slug) continue;
+        if (cutoffMs && job.date_posted) {
+          const postedMs = Date.parse(job.date_posted);
+          if (!Number.isNaN(postedMs) && postedMs < cutoffMs) continue;
+        }
         items.push({
-          title: cleanTitle,
-          link: link.trim(),
-          description: cleanDesc,
-          pubDate: pubDate
-            ? new Date(pubDate).toISOString()
+          title: job.heading,
+          link: `https://duunitori.fi/tyopaikat/tyo/${job.slug}`,
+          description: job.descr || job.heading,
+          pubDate: job.date_posted
+            ? new Date(job.date_posted).toISOString()
             : new Date().toISOString(),
-          company: "Duunitori Työnantaja",
+          company: job.company_name || "Duunitori Työnantaja",
+          location: job.municipality_name || undefined,
         });
       }
+
+      url = data.next;
     }
 
     if (items.length === 0) {
       console.warn(
-        "[DuunitoriHarvester] RSS feed empty or blocked. Falling back (mocks only if ALLOW_MOCK_FALLBACKS=true).",
+        "[DuunitoriHarvester] API returned no entries within lookback window. Falling back (mocks only if ALLOW_MOCK_FALLBACKS=true).",
       );
       return getFallbackMockAds(q, limit);
     }
@@ -146,7 +165,7 @@ export async function fetchDuunitoriJobsRaw(
 // ─── Harvester Definition ────────────────────────────────────────────────────
 
 export const duunitoriHarvester: HarvesterDefinition<
-  RawRssAd,
+  RawDuunitoriAd,
   Omit<TablesInsert<"job_postings">, "job_embedding">
 > = {
   platformName: PLATFORM_NAME,
@@ -154,7 +173,7 @@ export const duunitoriHarvester: HarvesterDefinition<
   defaultLanguage: DEFAULT_LANGUAGE,
   fetchRaw: async (limit, lookbackMinutes, q) => {
     try {
-      const ads = await fetchDuunitoriJobsRaw(limit, q);
+      const ads = await fetchDuunitoriJobsRaw(limit, q, lookbackMinutes);
       return ok(ads);
     } catch (error) {
       return fail(error instanceof Error ? error : new Error(String(error)));
@@ -170,7 +189,7 @@ export const duunitoriHarvester: HarvesterDefinition<
         title: rawAd.title,
         company: rawAd.company || "Duunitori Työnantaja",
         description: rawAd.description,
-        location: "Helsinki, Suomi",
+        location: rawAd.location || "Suomi",
         country: DEFAULT_COUNTRY,
         source_url: rawAd.link,
         original_language: DEFAULT_LANGUAGE,

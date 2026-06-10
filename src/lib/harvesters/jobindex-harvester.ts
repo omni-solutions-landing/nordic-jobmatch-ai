@@ -66,6 +66,22 @@ function getFallbackMockAds(q = "chauffør", limit: number): RawRssAd[] {
   ].slice(0, limit);
 }
 
+/** Decodes numeric character references and the basic named XML entities. */
+function decodeXmlEntities(text: string): string {
+  return text
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) =>
+      String.fromCodePoint(parseInt(hex, 16)),
+    )
+    .replace(/&#(\d+);/g, (_, dec: string) =>
+      String.fromCodePoint(parseInt(dec, 10)),
+    )
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
 export async function fetchJobindexJobsRaw(
   limit: number,
   q?: string,
@@ -86,7 +102,14 @@ export async function fetchJobindexJobsRaw(
       throw new Error(`Jobindex RSS returned status ${response.status}`);
     }
 
-    const xmlText = await response.text();
+    // Jobindex serves the RSS as ISO-8859-1 (declared in the XML prolog);
+    // response.text() would decode it as UTF-8 and garble æ/ø/å.
+    const rawBytes = await response.arrayBuffer();
+    const sniff = new TextDecoder("utf-8").decode(rawBytes.slice(0, 200));
+    const charsetMatch = sniff.match(/encoding="([^"]+)"/i);
+    const xmlText = new TextDecoder(
+      charsetMatch?.[1]?.toLowerCase() ?? "utf-8",
+    ).decode(rawBytes);
     const items: RawRssAd[] = [];
     const itemRegex = /<item>([\s\S]*?)<\/item>/g;
     let match;
@@ -103,14 +126,14 @@ export async function fetchJobindexJobsRaw(
       const pubDate =
         (itemContent.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || "";
 
-      const cleanTitle = title
-        .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, "$1")
-        .replace(/&amp;/g, "&")
-        .trim();
-      const cleanDesc = description
-        .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, "$1")
-        .replace(/<[^>]*>/g, "")
-        .trim();
+      const cleanTitle = decodeXmlEntities(
+        title.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, "$1"),
+      ).trim();
+      const cleanDesc = decodeXmlEntities(
+        description
+          .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, "$1")
+          .replace(/<[^>]*>/g, ""),
+      ).trim();
 
       if (cleanTitle && link) {
         items.push({

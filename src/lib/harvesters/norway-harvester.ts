@@ -6,7 +6,9 @@
  * @module Harvester — runs server-side only.
  */
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TablesInsert } from "@/lib/database.types";
+import { createServiceClient } from "@/lib/supabase/server";
 import { ok, fail } from "@/lib/fp/result";
 import {
   HarvesterDefinition,
@@ -212,6 +214,56 @@ async function callNavApi<T>(
   throw new Error(`NAV API request failed after ${maxRetries} retries: ${lastError?.message}`);
 }
 
+// ─── Cursor persistence ──────────────────────────────────────────────────────
+//
+// The stilling-feed is an append-only paginated feed. Consumers must remember
+// the last page they processed (the cursor) and walk forward via next_url on
+// every run — a stateless run can only see the newest, often nearly empty,
+// page (`?last`). The cursor lives in public.harvest_state (migration 00010).
+
+const FEED_SOURCE = "arbeidsplassen";
+
+/**
+ * harvest_state is intentionally absent from the generated Database type
+ * until migration 00010 has been applied and db:types rerun, so this helper
+ * goes through an untyped client. Both helpers degrade gracefully: a missing
+ * table just means stateless `?last` behavior.
+ */
+function untypedServiceClient(): SupabaseClient {
+  return createServiceClient() as unknown as SupabaseClient;
+}
+
+async function readFeedCursor(): Promise<string | null> {
+  try {
+    const { data, error } = await untypedServiceClient()
+      .from("harvest_state")
+      .select("cursor")
+      .eq("source", FEED_SOURCE)
+      .maybeSingle();
+    if (error) {
+      console.warn("[NorwayHarvester] Could not read feed cursor (run migration 00010?):", error.message);
+      return null;
+    }
+    return typeof data?.cursor === "string" ? data.cursor : null;
+  } catch (err) {
+    console.warn("[NorwayHarvester] Cursor read failed:", err);
+    return null;
+  }
+}
+
+async function writeFeedCursor(cursor: string): Promise<void> {
+  try {
+    const { error } = await untypedServiceClient()
+      .from("harvest_state")
+      .upsert({ source: FEED_SOURCE, cursor }, { onConflict: "source" });
+    if (error) {
+      console.warn("[NorwayHarvester] Could not persist feed cursor (run migration 00010?):", error.message);
+    }
+  } catch (err) {
+    console.warn("[NorwayHarvester] Cursor write failed:", err);
+  }
+}
+
 // ─── Feed Traversal ──────────────────────────────────────────────────────────
 
 export async function fetchNorwegianJobsRaw(
@@ -220,13 +272,19 @@ export async function fetchNorwegianJobsRaw(
 ): Promise<NavFeedAd[]> {
   const activeEntries: NavFeedLine[] = [];
   let pagesTraversed = 0;
-  let currentUrl: string | null = `${NAV_FEED_BASE_URL}/api/v1/feed?last`;
+
+  const startCursor = await readFeedCursor();
+  let currentUrl: string | null = startCursor
+    ? `${NAV_FEED_BASE_URL}/api/v1/feed/${startCursor}`
+    : `${NAV_FEED_BASE_URL}/api/v1/feed?last`;
+  let lastPageId: string | null = null;
 
   while (currentUrl && activeEntries.length < limit && pagesTraversed < MAX_FEED_PAGES) {
     const page: NavFeedPage | null = await callNavApi<NavFeedPage>(currentUrl, token);
-    if (!page || page.items.length === 0) break;
+    if (!page) break;
 
     pagesTraversed++;
+    lastPageId = page.id;
 
     for (const item of page.items) {
       if (item._feed_entry.status === "ACTIVE" && activeEntries.length < limit) {
@@ -241,6 +299,13 @@ export async function fetchNorwegianJobsRaw(
     if (currentUrl && activeEntries.length < limit) {
       await new Promise((r) => setTimeout(r, INTER_PAGE_DELAY_MS));
     }
+  }
+
+  // Persist the last page we visited. Re-reading that page next run is
+  // intentional: it may have gained new entries, and source_url upserts
+  // dedupe anything we already stored.
+  if (lastPageId) {
+    await writeFeedCursor(lastPageId);
   }
 
   const ads: NavFeedAd[] = [];

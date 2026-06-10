@@ -70,7 +70,8 @@ nordic-jobmatch-ai/
 │       ├── 00006_fix_match_jobs_search_path.sql # Fix match_jobs search path for pgvector operators
 │       ├── 00007_match_jobs_with_keywords.sql # Keyword-filtered semantic job matching RPC
 │       ├── 00008_add_job_posting_source_platform.sql # Added source_platform column to job_postings
-│       └── 00009_add_notification_settings.sql # Add notification settings and push subscription to profiles
+│       ├── 00009_add_notification_settings.sql # Add notification settings and push subscription to profiles
+│       └── 00010_harvest_state.sql # Per-source harvester cursor table (NAV feed incremental consumption)
 │
 ├── src/
 │   ├── proxy.ts                        # Root proxy (middleware): next-intl + Supabase auth session refresh
@@ -138,14 +139,11 @@ nordic-jobmatch-ai/
 │       │
 │       ├── harvesters/
 │       │   ├── harvester-pipeline.ts  # Generic pure functional pipeline orchestrator (executeHarvestPipeline)
-│       │   ├── sweden-harvester.ts    # JobTech Dev API (CC0 search)
-│       │   ├── norway-harvester.ts    # NAV stilling-feed (Arbeidsplassen API)
-│       │   ├── indeed-harvester.ts    # Indeed RSS aggregator
-│       │   ├── jobindex-harvester.ts  # Jobindex.dk (Danish job board)
-│       │   ├── duunitori-harvester.ts # Duunitori.fi (Finnish job board)
-│       │   ├── facebook-harvester.ts  # Facebook group posts via Meta Graph API + Gemini structuring
-│       │   ├── blocket-harvester.ts   # Blocket Jobb scraper
-│       │   └── finn-harvester.ts      # FINN.no (Norwegian job board) + Gemini parsing
+│       │   ├── sweden-harvester.ts    # JobTech Dev API (official, no key needed)
+│       │   ├── norway-harvester.ts    # NAV stilling-feed (official; cursor in harvest_state, public-token fallback)
+│       │   ├── jobindex-harvester.ts  # Jobindex.dk RSS (Danish job board)
+│       │   ├── duunitori-harvester.ts # Duunitori.fi JSON API (Finnish job board)
+│       │   └── facebook-harvester.ts  # Facebook group posts (requires FACEBOOK_ACCESS_TOKEN; Groups API restricted)
 │       │
 │       └── ai/
 │           ├── cv-parser/             # Gemini parsing logic with transient retry fallbacks
@@ -260,3 +258,6 @@ FormData (PDF) → validateFile() → verifyAuth() → ArrayBuffer → Buffer
 - **Embedding model** — model is gemini-embedding-001 (text-embedding-004 was retired by Google 2026-01-14). 768-d is requested via outputDimensionality. Changing the model invalidates ALL stored embeddings — both cv_profiles.skills_embedding and job_postings.job_embedding must be regenerated (use `scripts/regenerate-embeddings.ts`, verify with `scripts/verify-embeddings.ts`). Last verified/regenerated: 2026-06-10.
 - **Parser fallback models** — `parser.ts` falls back to gemini-2.0-flash then gemini-3.5-flash on transient errors. gemini-3.5-flash is a real model (verified via ListModels 2026-06-10, version 3.5-flash-05-2026).
 - **Harvester mock fallbacks** — mock fallbacks only activate when ALLOW_MOCK_FALLBACKS=true. Never set this flag in production.
+- **Harvester sources (audited 2026-06-10)** — Sweden (JobTech) and Norway (NAV stilling-feed) are official APIs and need no credentials (NAV falls back to its rotating public token if NAV_FEED_TOKEN is unset). Jobindex.dk RSS works but is served as ISO-8859-1 (the harvester decodes from the XML prolog). Duunitori's RSS was removed — its JSON API (/api/v1/jobentries) is used instead. Indeed (Cloudflare-blocked, no API), Blocket Jobb (domain shut down), and FINN.no (no JobPosting JSON-LD, partner-only API) harvesters were removed.
+- **NAV feed cursor** — the stilling-feed is append-only: the harvester persists the last processed page id in `harvest_state` and walks forward each run. Without migration 00010 applied it degrades to reading only the newest feed page (low yield).
+- **Cron harvest defaults** — /api/cron/harvest runs daily (vercel.json, 9:00 UTC) with publishedAfter=1500 min and platforms sweden,norway,jobindex,duunitori. extractUnstructuredData makes one Gemini call per jobindex/duunitori ad; on free-tier quota exhaustion ads are still stored, just without hard_requirements.

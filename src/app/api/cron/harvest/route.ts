@@ -27,12 +27,12 @@ export async function GET(request: NextRequest) {
   const limitParam = searchParams.get("limit");
   const limit = limitParam ? parseInt(limitParam, 10) : 50;
   const publishedAfterParam = searchParams.get("publishedAfter");
-  const publishedAfter = publishedAfterParam ? parseInt(publishedAfterParam, 10) : 240;
+  // Daily cron must look back a full day (plus overlap); source_url upserts dedupe reruns.
+  const publishedAfter = publishedAfterParam ? parseInt(publishedAfterParam, 10) : 1500;
   const q = searchParams.get("q") || undefined;
 
   // Pre-translate search keywords for target country languages in parallel
-  const [keywordNo, keywordDa, keywordFi] = await Promise.all([
-    q ? translateKeyword(q, "no") : Promise.resolve(""),
+  const [keywordDa, keywordFi] = await Promise.all([
     q ? translateKeyword(q, "da") : Promise.resolve(""),
     q ? translateKeyword(q, "fi") : Promise.resolve(""),
   ]);
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
   const platformsParam = searchParams.get("platforms");
   const platforms = platformsParam
     ? platformsParam.split(",").map((p) => p.trim().toLowerCase())
-    : ["sweden", "norway"]; // default to public feeds for standard cron
+    : ["sweden", "norway", "jobindex", "duunitori"]; // all stable feeds for standard cron
 
   const results: Record<string, unknown> = {};
   const errors: string[] = [];
@@ -71,21 +71,6 @@ export async function GET(request: NextRequest) {
         results.norway = noResult;
       } catch (error) {
         const msg = `Norway harvest failed: ${error instanceof Error ? error.message : String(error)}`;
-        console.error(msg);
-        errors.push(msg);
-      }
-    })());
-  }
-
-  // 3. Indeed
-  if (platforms.includes("indeed")) {
-    tasks.push((async () => {
-      try {
-        const { harvestIndeedJobs } = await import("@/lib/harvesters/indeed-harvester");
-        const res = await harvestIndeedJobs(limit, publishedAfter, q);
-        results.indeed = res;
-      } catch (error) {
-        const msg = `Indeed harvest failed: ${error instanceof Error ? error.message : String(error)}`;
         console.error(msg);
         errors.push(msg);
       }
@@ -131,36 +116,6 @@ export async function GET(request: NextRequest) {
         results.facebook = res;
       } catch (error) {
         const msg = `Facebook harvest failed: ${error instanceof Error ? error.message : String(error)}`;
-        console.error(msg);
-        errors.push(msg);
-      }
-    })());
-  }
-
-  // 7. Blocket Jobb
-  if (platforms.includes("blocket")) {
-    tasks.push((async () => {
-      try {
-        const { harvestBlocketJobs } = await import("@/lib/harvesters/blocket-harvester");
-        const res = await harvestBlocketJobs(limit, publishedAfter, q);
-        results.blocket = res;
-      } catch (error) {
-        const msg = `Blocket harvest failed: ${error instanceof Error ? error.message : String(error)}`;
-        console.error(msg);
-        errors.push(msg);
-      }
-    })());
-  }
-
-  // 8. FINN.no (Norway)
-  if (platforms.includes("finn") || platforms.includes("norway-private")) {
-    tasks.push((async () => {
-      try {
-        const { harvestFinnJobs } = await import("@/lib/harvesters/finn-harvester");
-        const res = await harvestFinnJobs(limit, publishedAfter, keywordNo || q);
-        results.finn = res;
-      } catch (error) {
-        const msg = `FINN.no harvest failed: ${error instanceof Error ? error.message : String(error)}`;
         console.error(msg);
         errors.push(msg);
       }
