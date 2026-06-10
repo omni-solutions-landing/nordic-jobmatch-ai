@@ -56,6 +56,56 @@ type NordicCountry = (typeof VALID_COUNTRIES)[number];
 /** Semantic floor used only for the keyword-less retry, to avoid noise. */
 const SEMANTIC_ONLY_THRESHOLD = 0.35;
 
+// ─── Keyword-only fallback ───────────────────────────────────────────────────
+
+/** Strips characters that would break PostgREST .or() filter syntax. */
+function sanitizeForIlike(keyword: string): string {
+  return keyword.replace(/[^\p{L}\p{N}\s-]/gu, "").trim();
+}
+
+/**
+ * Plain ILIKE search over title/description, newest first. Used when the
+ * query embedding cannot be generated (missing GEMINI_API_KEY, quota) so the
+ * search page keeps working — just without semantic ranking.
+ */
+async function keywordOnlySearch(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  opts: {
+    keywords: string[];
+    countries: readonly NordicCountry[];
+    limit: number;
+  },
+): Promise<Result<JobSearchResult[], Error>> {
+  const patterns = opts.keywords
+    .map(sanitizeForIlike)
+    .filter((k) => k.length > 1)
+    .slice(0, 25);
+
+  let query = supabase
+    .from("job_postings")
+    .select(JOB_COLUMNS)
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+    .order("created_at", { ascending: false })
+    .limit(opts.limit);
+
+  if (patterns.length > 0) {
+    query = query.or(
+      patterns
+        .flatMap((k) => [`title.ilike.%${k}%`, `description.ilike.%${k}%`])
+        .join(","),
+    );
+  }
+  if (opts.countries.length > 0) {
+    query = query.in("country", [...opts.countries]);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    return fail(new Error(`Jobbsökningen misslyckades: ${error.message}`));
+  }
+  return ok((data ?? []).map((job) => ({ ...job, similarity: null })));
+}
+
 // ─── Main Action ─────────────────────────────────────────────────────────────
 
 export async function searchJobs(
@@ -100,11 +150,6 @@ export async function searchJobs(
     }
 
     // ── Search mode: semantic + keyword hybrid ──
-    const queryEmbedding = await generateEmbedding(query, {
-      taskType: "query",
-    });
-    const embeddingString = `[${queryEmbedding.join(",")}]`;
-
     const rawKeywords = query
       .split(/[,\s]+/)
       .map((k) => k.trim())
@@ -113,6 +158,28 @@ export async function searchJobs(
       rawKeywords,
       translateKeyword,
     );
+
+    // Embedding the query needs Gemini. If that fails (missing key, quota),
+    // degrade to keyword-only ILIKE search instead of failing the page.
+    let queryEmbedding: number[] | null = null;
+    try {
+      queryEmbedding = await generateEmbedding(query, { taskType: "query" });
+    } catch (err) {
+      console.warn(
+        "[searchJobs] Query embedding failed — falling back to keyword-only search:",
+        err,
+      );
+    }
+
+    if (!queryEmbedding) {
+      return keywordOnlySearch(supabase, {
+        keywords: matchKeywords.length > 0 ? matchKeywords : [query],
+        countries,
+        limit,
+      });
+    }
+
+    const embeddingString = `[${queryEmbedding.join(",")}]`;
 
     // The RPC supports a single country filter; multi-country selections are
     // over-fetched and filtered here (same approach as getMatchesForUser).
